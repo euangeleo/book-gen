@@ -1,0 +1,74 @@
+==INPUT and ASSUMPTIONS==
+
+text is in a single file; use simple mark-down? important things will be:
+  * paragraph breaks
+  * section breaks (no numbers, just icon/dingbat divider)
+  * chapter breaks
+
+let's assume front matter will be created and edited elsewhere, and will be specific for the format
+
+Let's assume the only two formats will be (1) print (PDF) and (2) epub, as input to Kindle generator
+
+let's assume text is UTF-8, including non-ASCII chars like em dash, curly single and double quotes
+  --> test: run a character inventory on the file before further processing
+
+Let's assume that the for-print title page will be hand-crafted; shall we create a LaTeX input file to generate a PDF?
+
+NOTE: Use Pandoc (pandoc.org) to convert from markdown to HTML or LaTeX?
+
+==PROCESS==
+
+Editing:
+-- check for consistency with em-dashes
+-- check for consistency with en-dashes
+-- check for consistency with turned double quotes, turned single quotes
+-- check that there are no straight quotes (single or double)
+-- check for consistency in whitespace?
+
+Processing:
+  ebook:
+     convert non-ASCII to html entities
+     add minimal html (paragraph tags)
+     split chapters into separate files
+     generate the various table of contents and indices
+
+  print:
+     convert to LaTeX format
+     insert text into pre-worked "template" with front/back matter?
+     make sure style file is correct
+     generate PDF?
+
+==OLD==
+
+To do list for Em's ADVANCED READER COPY formatting:
+
+D- check for consistency with em-dashes (all parentheticals, interruptions, incompletes, no space padding)
+D- check for consistency with en-dashes (course names and locations, no space padding)
+D- check for consistency with section breaks, get rid of extra white space characters
+D- check for consistency with chapter headings
+D- found and removed all extraneous tabs
+D- re-read once
+D- add front matter, at least copyright info
+D- add ToC
+FORK: PDF and ebook versions here
+D- add cover placeholder (for PDF version)
+D- hatchmarks or cross-hatching
+D- no plain apostrophes?
+D- consistency in "onstage" versus "on stage"? 
+
+D- fix multi-font embedding issue (regular and bold)
+D- fix title page (if Em wants a graphic there)
+D- Size of title
+D- Size of chapter headings
+D- Title page single lines
+X- fix link to review? (maybe?) (print? ebook?)
+?- Fix ebook contents dedication not in FRONT MATTER
+
+- hyphen
+– en dash
+— em dash
+' apostrophe
+’ turned apostrophe
+‘
+
+Font: Johnny Mac Scrawl created by Ænigma Fonts, fee required for commercial use.
