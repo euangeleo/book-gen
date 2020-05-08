@@ -1,0 +1,61 @@
+#!/usr/bin/python3
+""" inventory: generate an inventory of characters in a text file.
+
+    2020-05-06, Eric M. Jackson
+
+    Read in a user-provided file, determine the set of all characters 
+    used in the file, and print them.
+"""
+
+# import statements
+import sys
+
+# Global variables for settings:
+
+# helper functions
+def prettyprint(list):
+    """Print a list of characters in an easy to read way"""
+
+    """The idea: single column for ASCII up to letters,
+                 single column for everything above ASCII letters,
+                 except print all letters on a single line
+       Assume the list is sorted."""
+
+    predone=[]
+
+    for character in list:
+        if character in predone:
+            continue
+        if (ord(character) < 65) or (ord(character) > 90):
+            print(character)
+        else:
+            if character.isupper() and (character.lower() in list):
+                predone.append(character.lower())
+                print(character, character.lower())
+            else:
+                print(character)
+
+
+def main():
+    """Generate a character inventory"""
+
+    # Check for proper command line usage
+    if len(sys.argv) is not 2:
+        print("Usage: inventory text_file")
+        exit(1)
+
+    input_file = sys.argv[1]
+
+
+    inventory = set([])
+
+    with open(input_file, mode='r', encoding='utf-8-sig') as file:
+        contents = file.read()
+        inventory.update(list(contents))
+
+    prettyprint(sorted(inventory))
+
+
+if __name__ == "__main__":
+    main()
+
