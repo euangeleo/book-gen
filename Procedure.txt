@@ -11,10 +11,13 @@ Let's assume the only two formats will be (1) print (PDF) and (2) epub, as input
 
 let's assume text is UTF-8, including non-ASCII chars like em dash, curly single and double quotes
   --> test: run a character inventory on the file before further processing
+      Q: Which characters in the inventory will need to be replaced with HTML entities?
+      Q: Do you want to turn all straight single and double quotes to curved quotes?
 
 Let's assume that the for-print title page will be hand-crafted; shall we create a LaTeX input file to generate a PDF?
 
 NOTE: Use Pandoc (pandoc.org) to convert from markdown to HTML or LaTeX?
+   Q: Will Pandoc automatically convert to HTML entities?
 
 ==PROCESS==
 
