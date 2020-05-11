@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 """ inventory: generate an inventory of characters in a text file.
 
-    2020-05-06, Eric M. Jackson
+    Eric M. Jackson
+    start of work 2020-05-06
 
     Read in a user-provided file, determine the set of all characters 
     used in the file, and print them.
@@ -9,11 +10,12 @@
 
 # import statements
 import sys
+import unicodedata
 
 # Global variables for settings:
 
 # helper functions
-def prettyprint(list):
+def prettyprint(char_list):
     """Print a list of characters in an easy to read way"""
 
     """The idea: single column for ASCII up to letters,
@@ -21,19 +23,73 @@ def prettyprint(list):
                  except print all letters on a single line
        Assume the list is sorted."""
 
-    predone=[]
+    print('ASCII LETTERS:')
 
-    for character in list:
-        if character in predone:
-            continue
-        if (ord(character) < 65) or (ord(character) > 90):
-            print(character)
-        else:
-            if character.isupper() and (character.lower() in list):
-                predone.append(character.lower())
-                print(character, character.lower())
+    printed_something = False
+    for index in range(65,91):
+        if chr(index) in char_list:
+            if chr(index).lower() in char_list:
+                print(chr(index), chr(index).lower())
             else:
-                print(character)
+                print(chr(index))
+            printed_something = True
+        elif chr(index).lower() in char_list:
+            print(' ', chr(index).lower())
+            printed_something = True
+        elif index == 90 and not printed_something:
+            print("(none)")           
+
+    print('\nPUNCTUATION, NUMBERS, SYMBOLS:')
+
+    indices = list(range(33,65)) + list(range(91,97)) + list(range(123,128))
+ 
+    printed_something = False
+    for index in indices:
+        if chr(index) in char_list:
+            print(chr(index))
+            printed_something = True
+        elif index == 127 and not printed_something:
+            print("(none)")
+
+    print('\nNON-PRINTING AND WHITESPACE:')
+
+    printed_something = False
+    for index in range(1,33):
+        if chr(index) in char_list:
+            if index == 9:
+                print("\\t", 'index', index, ", tab")
+                printed_something = True
+                continue
+            elif index == 10:
+                print("\\n", 'index', index, ", newline")
+                printed_something = True
+                continue
+            else:
+                try:
+                    print(chr(index), 'index', index, ",", unicodedata.name(chr(index)))
+                    printed_something = True
+                except ValueError:
+                    print(chr(index), 'index', index, ",", "No Unicode name")
+                    printed_something = True
+        elif index == 32 and not printed_something:
+            print("(none)")
+
+    print('\nABOVE ASCII:')
+
+    above_ascii = (x for x in char_list if ord(x) > 127)
+
+    if above_ascii:
+        for char in above_ascii:
+            try:
+                print(char, 'index', ord(char), ",", unicodedata.name(char))
+                printed_something = True
+            except ValueError:
+                print(char, 'index', ord(char), ",", "No Unicode name")
+                printed_something = True
+    else:
+        print("(none)")
+
+    print()
 
 
 def main():
