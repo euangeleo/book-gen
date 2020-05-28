@@ -15,6 +15,18 @@ import unicodedata
 # Global variables for settings:
 
 # helper functions
+def getinventory(filename):
+    """Given a filename, generate the character inventory of that file"""
+
+    inventory = set([])
+
+    with open(filename, mode='r', encoding='utf-8-sig') as file:
+        contents = file.read()
+        inventory.update(list(contents))
+
+    return inventory
+
+
 def prettyprint(char_list):
     """Print a list of characters in an easy to read way"""
 
@@ -100,16 +112,7 @@ def main():
         print("Usage: inventory text_file")
         exit(1)
 
-    input_file = sys.argv[1]
-
-
-    inventory = set([])
-
-    with open(input_file, mode='r', encoding='utf-8-sig') as file:
-        contents = file.read()
-        inventory.update(list(contents))
-
-    prettyprint(sorted(inventory))
+    prettyprint(sorted(getinventory(sys.argv[1])))
 
 
 if __name__ == "__main__":
