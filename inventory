@@ -4,7 +4,7 @@
     Eric M. Jackson
     start of work 2020-05-06
 
-    Read in a user-provided file, determine the set of all characters 
+    Read in a user-provided file, determine the set of all characters
     used in the file, and print them.
 """
 
@@ -28,17 +28,12 @@ def getinventory(filename):
 
 
 def prettyprint(char_list):
-    """Print a list of characters in an easy to read way"""
-
-    """The idea: single column for ASCII up to letters,
-                 single column for everything above ASCII letters,
-                 except print all letters on a single line
-       Assume the list is sorted."""
+    """Print a list of characters in an easy to read way. Assume the list is sorted."""
 
     print('ASCII LETTERS:')
 
     printed_something = False
-    for index in range(65,91):
+    for index in range(65, 91):
         if chr(index) in char_list:
             if chr(index).lower() in char_list:
                 print(chr(index), chr(index).lower())
@@ -49,12 +44,12 @@ def prettyprint(char_list):
             print(' ', chr(index).lower())
             printed_something = True
         elif index == 90 and not printed_something:
-            print("(none)")           
+            print("(none)")
 
     print('\nPUNCTUATION, NUMBERS, SYMBOLS:')
 
-    indices = list(range(33,65)) + list(range(91,97)) + list(range(123,128))
- 
+    indices = list(range(33, 65)) + list(range(91, 97)) + list(range(123, 128))
+
     printed_something = False
     for index in indices:
         if chr(index) in char_list:
@@ -66,7 +61,7 @@ def prettyprint(char_list):
     print('\nNON-PRINTING AND WHITESPACE:')
 
     printed_something = False
-    for index in range(1,33):
+    for index in range(1, 33):
         if chr(index) in char_list:
             if index == 9:
                 print("\\t", 'index', index, ", tab")
