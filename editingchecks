@@ -1,0 +1,63 @@
+#!/usr/bin/python3
+""" editingchecks: run several automated editing checks on a text file.
+
+    Eric M. Jackson
+    start of work 2020-05-27
+
+    Check for problems with whitespace, certain punctuation (turned
+    quotation marks, em- and en-dashes)
+"""
+
+# import statements
+import sys
+import os
+import unicodedata
+#import inventory
+
+# Global variables for settings:
+CHARS_TO_CHECK = [8211, 8212, 34, 39] # &ndash; &mdash; " '
+
+# helper functions
+def print_line(line_number, line_text):
+    """Docstring"""
+
+
+
+
+def main():
+    """Run editing checks on a text document"""
+
+    # Check for proper command line usage
+    if len(sys.argv) is not 2:
+        print("Usage: editingchecks text_file")
+        exit(1)
+
+    filename = sys.argv[1]
+    if not os.path.isfile(filename):
+        print("File path {} does not exist. Exiting...".format(filename))
+        exit(1)
+
+    with open(filename, mode='r', encoding='utf-8-sig') as file:
+        print("Reading file... ", end = '')
+        # CAUTION: reading the whole file into memory
+        lines = file.readlines()
+        print("done.\n")
+
+    for item in CHARS_TO_CHECK:
+        found_none = True
+        print("Searching for {}:".format(chr(item)))
+        for index, line in enumerate(lines):
+            # If the char is found in this line, then print the line
+            if chr(item) in line:
+                found_none = False
+                print("Line {}: {}".format(index+1, line))
+        if found_none:
+           print("None found.")
+        print()
+        
+    exit(0)
+
+
+if __name__ == "__main__":
+    main()
+
