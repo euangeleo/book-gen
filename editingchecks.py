@@ -15,9 +15,21 @@ import unicodedata
 from inventory import getinventory, prettyprint
 
 # Global variables for settings:
+
+# a list containing characters whose context we want to check
 CHARS_WORTH_CHECKING = set([chr(8211), chr(8212), chr(34), chr(39)]) # &ndash; &mdash; " '
 
+# the number of characters to display to the left and right of a character of interest
+SNIPPET_RADIUS = 10
+
 # helper functions
+def findall(s, ch):
+    """Find all positions of a character in a string"""
+
+    # Credit to Lev Levitsky. https://stackoverflow.com/questions/11122291/how-to-find-char-in-string-and-get-all-the-indexes
+    return [i for i, ltr in enumerate(s) if ltr == ch]
+
+
 def runchecks(filename, charlist):
     """"Given a list of charcters to check, run editing checks on a file"""
 
@@ -35,11 +47,21 @@ def runchecks(filename, charlist):
             print("Searching for {}, (no Unicode name):".format(item))
 
         for index, line in enumerate(lines):
+            line = line.rstrip('\n')
             # If the char is found in this line, then print the line
             if item in line:
                 found_none = False
-                print("Line {}: {}".format(index+1, line))
+                print("Line {}:".format(index+1))
+                item_indices = findall(line, item)
+                for index in item_indices:
+                    if index < SNIPPET_RADIUS:
+                        left_extent = 0
+                    else:
+                        left_extent = index - SNIPPET_RADIUS
+                    print("  pos {}: {}".format(index, line[left_extent:index + SNIPPET_RADIUS + 1]))
+                print()
         if found_none:
+           # This should no longer happen if the character inventory limits the characters to check
            print("None found.")
         print()
     return 0
@@ -71,3 +93,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
