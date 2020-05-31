@@ -22,8 +22,10 @@ def getinventory(filename):
     inventory = set([])
 
     with open(filename, mode='r', encoding='utf-8-sig') as file:
+        print("Reading file for inventory...", end = '')
         contents = file.read()
         inventory.update(list(contents))
+        print("done.\n")
 
     return inventory
 
@@ -105,7 +107,7 @@ def main():
 
     # Check for proper command line usage
     if len(sys.argv) is not 2:
-        print("Usage: inventory text_file")
+        print("Usage: inventory.py text_file")
         exit(1)
 
     if not os.path.isfile(sys.argv[1]):
@@ -118,4 +120,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
