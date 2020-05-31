@@ -18,25 +18,8 @@ import unicodedata
 CHARS_TO_CHECK = [8211, 8212, 34, 39] # &ndash; &mdash; " '
 
 # helper functions
-def print_line(line_number, line_text):
-    """Docstring"""
-
-
-
-
-def main():
-    """Run editing checks on a text document"""
-
-    # Check for proper command line usage
-    if len(sys.argv) is not 2:
-        print("Usage: editingchecks text_file")
-        exit(1)
-
-    filename = sys.argv[1]
-    if not os.path.isfile(filename):
-        print("File path {} does not exist. Exiting...".format(filename))
-        exit(1)
-
+def runchecks(filename, charlist):
+    """"Given a list of charcters to check, run editing checks on a file"""
     with open(filename, mode='r', encoding='utf-8-sig') as file:
         print("Reading file... ", end = '')
         # CAUTION: reading the whole file into memory
@@ -54,8 +37,26 @@ def main():
         if found_none:
            print("None found.")
         print()
-        
-    exit(0)
+    print("Finished with no errors.")
+    return 0
+
+
+# Main
+def main():
+    """Run editing checks on a text document"""
+
+    # Check for proper command line usage
+    if len(sys.argv) is not 2:
+        print("Usage: editingchecks text_file")
+        exit(1)
+
+    filename = sys.argv[1]
+    if not os.path.isfile(filename):
+        print("File path {} does not exist. Exiting...".format(filename))
+        exit(1)
+
+    exitcode = runchecks(filename, CHARS_TO_CHECK)
+    exit(exitcode)
 
 
 if __name__ == "__main__":
