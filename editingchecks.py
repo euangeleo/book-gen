@@ -30,8 +30,36 @@ def findall(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
 
 
+def verify(character, left_context, right_context):
+    """
+    Verify that the character is properly used in this context. Currently defined only for:
+        em dash
+        en dash
+    """
+    # TODO: add left single quote, right single quote, left double quote, right double quote
+
+    available = [chr(8211), chr(8212)] # en dash, em dash
+
+    # Verify that the character is one we can check for
+
+    if character not in available:
+        print("Error in /verify/: Checks for {} have not been defined".format(character), file=sys.stderr)
+        return False
+
+    # Verification for em dash: must have letters to left and right (no num, no punct, no space?)
+    if character == chr(8212):
+        return left_context[-1].isalpha() and right_context[0].isalpha()
+
+    # Verification for en dash: must be symmetric, either both alpha or both alpha-space?
+    if character == chr(8211):
+        return (left_context[-1].isalpha() and right_context[0].isalpha()) or \
+               (left_context[-2].isalpha() and left_context[-1].isspace() and right_context[0].isspace() and right_context[1].isalpha())
+
+    # Interrupted quotes should be em dash, or en dash?
+
+
 def runchecks(filename, charlist):
-    """"Given a list of charcters to check, run editing checks on a file"""
+    """Given a list of charcters to check, run editing checks on a file"""
 
     with open(filename, mode='r', encoding='utf-8-sig') as file:
         print("Reading file for search...", end = '')
@@ -48,17 +76,27 @@ def runchecks(filename, charlist):
 
         for index, line in enumerate(lines):
             line = line.rstrip('\n')
-            # If the char is found in this line, then print the line
+
+    # If the char is found in this line, then evaluate whether the context is correct
+    # If the context isn't correct, then print the char and its context
             if item in line:
                 found_none = False
                 print("Line {}:".format(index+1))
                 item_indices = findall(line, item)
+                # determine context
                 for index in item_indices:
                     if index < SNIPPET_RADIUS:
                         left_extent = 0
                     else:
                         left_extent = index - SNIPPET_RADIUS
-                    print("  pos {}: {}".format(index, line[left_extent:index + SNIPPET_RADIUS + 1]))
+
+                    left_context = line[left_extent:index]
+                    right_context = line[index + 1:index + 1 + SNIPPET_RADIUS]
+
+                    if verify(item, left_context, right_context):
+                        print("  pos {}: okay".format(index))
+                    else:
+                        print("  pos {}: ...{}{}{}...".format(index, left_context, item, right_context))
                 print()
         if found_none:
            # This should no longer happen if the character inventory limits the characters to check
