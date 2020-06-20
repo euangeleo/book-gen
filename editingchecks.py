@@ -17,17 +17,26 @@ from inventory import getinventory, prettyprint
 # Global variables for settings:
 
 # a list containing characters whose context we want to check
-CHARS_WORTH_CHECKING = set([chr(8211), chr(8212), chr(34), chr(39)]) # &ndash; &mdash; " '
+CHARS_WORTH_CHECKING = set([chr(8211),  # &ndash;
+                            chr(8212),  # &mdash;
+                            chr(34),    # "
+                            chr(39),    # '
+                            chr(8216),  # &lsquo;
+                            chr(8217),  # &rsquo;
+                            chr(8220),  # &ldquo;
+                            chr(8221)]) # &rdquo;
+
+# TODO: add chr(8216) ‘, 8217 ’, 8220 “, 8221 ”, 8230 … versus ..., 9674 ◊ in threes
 
 # the number of characters to display to the left and right of a character of interest
 SNIPPET_RADIUS = 10
 
 # helper functions
-def findall(s, ch):
+def findall(string, character):
     """Find all positions of a character in a string"""
 
     # Credit to Lev Levitsky. https://stackoverflow.com/questions/11122291/how-to-find-char-in-string-and-get-all-the-indexes
-    return [i for i, ltr in enumerate(s) if ltr == ch]
+    return [i for i, item in enumerate(string) if item == character]
 
 
 def verify(character, left_context, right_context):
@@ -35,14 +44,17 @@ def verify(character, left_context, right_context):
     Verify that the character is properly used in this context. Currently defined only for:
         em dash
         en dash
+        left single and double quote
+        right single and double quote
     """
-    # TODO: add left single quote, right single quote, left double quote, right double quote
+    #   different file checking for (space chr(32)), just look for doubles?
+    #   likewise different checking for ... versus ellipsis?
 
-    available = [chr(8211), chr(8212)] # en dash, em dash
+    defined = [chr(8211), chr(8212), chr(8216), chr(8217), chr(8220), chr(8221)] # en dash, em dash, lsquo, rsquo, ldquo, rdquo
 
     # Verify that the character is one we can check for
 
-    if character not in available:
+    if character not in defined:
         print("Error in /verify/: Checks for {} have not been defined".format(character), file=sys.stderr)
         return False
 
@@ -57,12 +69,40 @@ def verify(character, left_context, right_context):
 
     # Interrupted quotes should be em dash, or en dash?
 
+    # Verification for left single quote OR left double quote: to left is space, to right is alpha (not alphanumeric?)
+    if character == chr(8216) or character == chr(8220):
+        if len(left_context) > 0 and len(right_context) > 0:
+            return left_context[-1].isspace() and right_context[0].isalpha()
+        elif len(left_context) == 0:
+            return right_context[0].isalpha()
+        else:
+            return False
+
+    # Verification for right single quote: to left is alnum, to right is space OR (as apostrophe in contractions) left & right only alpha
+    if character == chr(8217):
+        if len(left_context) > 0 and len(right_context) > 0:
+            return (left_context[-1].isalpha() and right_context[0].isspace()) or \
+                   (left_context[-1].isalpha() and right_context[0].isalpha())
+        elif len(right_context) == 0:
+            return left_context[-1].isalpha()
+        else:
+            return False
+
+    # Verification for right double quote: to left is alnum, to right is space
+    if character == chr(8221):
+        if len(left_context) > 0 and len(right_context) > 0:
+            return left_context[-1].isalpha() and right_context[0].isspace()
+        elif len(right_context) == 0:
+            return left_context[-1].isalpha()
+        else:
+            return False
+
 
 def runchecks(filename, charlist):
     """Given a list of charcters to check, run editing checks on a file"""
 
     with open(filename, mode='r', encoding='utf-8-sig') as file:
-        print("Reading file for search...", end = '')
+        print("Reading file for search...", end='')
         # CAUTION: reading the whole file into memory
         lines = file.readlines()
         print("done.\n")
@@ -99,8 +139,8 @@ def runchecks(filename, charlist):
                         print("  pos {}: ...{}{}{}...".format(index, left_context, item, right_context))
                 print()
         if found_none:
-           # This should no longer happen if the character inventory limits the characters to check
-           print("None found.")
+            # This should no longer happen if the character inventory limits the characters to check
+            print("None found.")
         print()
     return 0
 
