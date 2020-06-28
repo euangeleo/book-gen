@@ -32,6 +32,9 @@ CHARS_WORTH_CHECKING = set([chr(8211),  # &ndash;
 
 # TODO: add checks for 8230 … versus ..., 9674 ◊ in threes
 
+# Punctuation in use
+PUNCTUATION = set(['.', ',', '?', '!'])
+
 # the number of characters to display to the left and right of a character of interest
 SNIPPET_RADIUS = 10
 
@@ -88,22 +91,22 @@ def verify(character, left_context, right_context):
         else:
             return False
 
-    # Verification for right single quote: to left is alnum, to right is space OR (as apostrophe in contractions) left & right only alpha
+    # Verification for right single quote: to left is alpha or punct, to right is space OR (as apostrophe in contractions) left & right only alpha
     if character == chr(8217):
         if len(left_context) > 0 and len(right_context) > 0:
-            return (left_context[-1].isalpha() and right_context[0].isspace()) or \
+            return ((left_context[-1].isalpha() or left_context[-1] in PUNCTUATION) and right_context[0].isspace()) or \
                    (left_context[-1].isalpha() and right_context[0].isalpha())
         elif len(right_context) == 0:
-            return left_context[-1].isalpha()
+            return left_context[-1].isalpha() or left_context[-1] in PUNCTUATION
         else:
             return False
 
-    # Verification for right double quote: to left is alnum, to right is space
+    # Verification for right double quote: to left is alpha or punct, to right is space
     if character == chr(8221):
         if len(left_context) > 0 and len(right_context) > 0:
-            return left_context[-1].isalpha() and right_context[0].isspace()
+            return (left_context[-1].isalpha() or left_context[-1] in PUNCTUATION) and right_context[0].isspace()
         elif len(right_context) == 0:
-            return left_context[-1].isalpha()
+            return left_context[-1].isalpha() or left_context[-1] in PUNCTUATION
         else:
             return False
 
