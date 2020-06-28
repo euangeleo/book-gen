@@ -12,6 +12,7 @@
 import sys
 import os
 import unicodedata
+import datetime
 
 # Global variables for settings:
 
@@ -111,7 +112,8 @@ def main():
         print("File path {} does not exist. Exiting...".format(filename))
         exit(1)
 
-    print("Reading file for inventory... ", end = '')
+    print("Started at {}, checking file {}:".format(datetime.datetime.now(), filename))
+    print("Reading file for inventory... ", end='')
     try:
         with open(filename, mode='r', encoding='utf-8-sig') as file:
            # CAUTION: reading the whole file into memory
