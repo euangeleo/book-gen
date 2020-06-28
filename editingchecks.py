@@ -4,7 +4,7 @@
     Eric M. Jackson
     start of work 2020-05-27
 
-    Check for problems with whitespace, certain punctuation (turned
+    Check for problems with blank space, certain punctuation (turned
     quotation marks, em- and en-dashes)
 """
 
@@ -12,7 +12,10 @@
 import sys
 import os
 import unicodedata
+from itertools import groupby
+from operator import itemgetter
 from inventory import getinventory, prettyprint
+
 
 # Global variables for settings:
 
@@ -37,6 +40,13 @@ def findall(string, character):
 
     # Credit to Lev Levitsky. https://stackoverflow.com/questions/11122291/how-to-find-char-in-string-and-get-all-the-indexes
     return [i for i, item in enumerate(string) if item == character]
+
+
+def findall_blank(string):
+    """Find all positions of blank space in a string"""
+
+    # Based on the helper function /findall/; could be abstracted, probably
+    return [i for i, item in enumerate(string) if item.isspace()]
 
 
 def verify(character, left_context, right_context):
@@ -100,11 +110,29 @@ def verify(character, left_context, right_context):
 def runchecks(lines, charlist):
     """Given a list of charcters to check, run editing checks on a file"""
 
-    # Run check for bad whitespace; single space is chr()
-    print("Checking for double spaces:")
+    # Run check for bad blank space: two or more adjacent blanks, blanks at end of line
+    print("Checking for blank space problems:")
     for index, line in enumerate(lines):
-        # Q: HOW TO FIND ADJACENT WHITESPACE? LOOK AT ALL SUBSTRINGS OF LENGTH 2?
-        continue #TODO
+        print_for_this_line = False
+        line = line.rstrip('\n')
+        blanks, sequences = findall_blank(line), []
+        if len(blanks) == 0:
+            continue
+        for k, group in groupby(enumerate(blanks), lambda x: x[0] - x[1]):
+            blanks_group = list(map(itemgetter(1), group))
+            if len(blanks_group) > 1:
+                sequences.append(blanks_group)
+        if len(sequences) > 0:
+            print_for_this_line = True
+            print("Line {}:".format(index+1))
+            for sequence in sequences:
+                print("   Position {}, blank sequence of length {}".format(sequence[0], len(sequence)))
+        if blanks[-1] == len(line)-1:
+            print_for_this_line = True
+            print("NB: blank at end of line {}".format(index+1))
+        if print_for_this_line:
+            print("")
+    print("Done with blanks check.\n")
 
     # Run additional checks for just those elements that are found in the doc
     for item in charlist:
@@ -159,7 +187,7 @@ def main():
         print("File path {} does not exist. Exiting...".format(filename))
         exit(1)
 
-    print("Reading file for inventory... ", end = '')
+    print("Reading file for inventory... ", end='')
     try:
         with open(filename, mode='r', encoding='utf-8-sig') as file:
             # CAUTION: reading the whole file into memory
