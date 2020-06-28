@@ -163,7 +163,9 @@ def runchecks(lines, charlist):
                     right_context = line[index + 1:index + 1 + SNIPPET_RADIUS]
 
                     if verify(item, left_context, right_context):
-                        print("  pos {}: okay".format(index))
+                        continue
+                        # Removing these prints will save lots of output space
+                        # print("  pos {}: okay".format(index))
                     else:
                         print("  pos {}: ...{}{}{}...".format(index, left_context, item, right_context))
                 print()
@@ -203,7 +205,10 @@ def main():
     prettyprint(sorted(char_inventory))
     # Limit the characters to be checked to only those that are found in the document
     chars_to_check = sorted(list(char_inventory.intersection(CHARS_WORTH_CHECKING)))
-    exitcode = runchecks(lines, chars_to_check)
+    exitcode_1 = runchecks(lines, chars_to_check)
+
+    # 
+    exitcode_2 = 
     if exitcode == 0:
         print("Finished with no errors.")
         exit(0)
