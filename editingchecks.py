@@ -135,7 +135,7 @@ def runchecks(lines, charlist):
             print("")
     print("Done with blanks check.\n")
 
-    # Run additional checks for just those elements that are found in the doc
+    # Run additional checks for elements in charlist
     for item in charlist:
         found_none = True
         try:
@@ -148,6 +148,7 @@ def runchecks(lines, charlist):
 
     # If the char is found in this line, then evaluate whether the context is correct
     # If the context isn't correct, then print the char and its context
+    # For any non-ASCII chars that haven't been checked yet, just show the context
             if item in line:
                 found_none = False
                 print("Line {}:".format(index+1))
@@ -204,11 +205,8 @@ def main():
     char_inventory = getinventory(lines)
     prettyprint(sorted(char_inventory))
     # Limit the characters to be checked to only those that are found in the document
-    chars_to_check = sorted(list(char_inventory.intersection(CHARS_WORTH_CHECKING)))
-    exitcode_1 = runchecks(lines, chars_to_check)
-
-    # 
-    exitcode_2 = 
+    chars_to_check = sorted(list(char_inventory.intersection(CHARS_WORTH_CHECKING) | char_inventory.difference([chr(i) for i in range(128)])))
+    exitcode = runchecks(lines, chars_to_check)
     if exitcode == 0:
         print("Finished with no errors.")
         exit(0)
