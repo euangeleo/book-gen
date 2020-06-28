@@ -12,6 +12,7 @@
 import sys
 import os
 import unicodedata
+import datetime
 from itertools import groupby
 from operator import itemgetter
 from inventory import getinventory, prettyprint
@@ -187,6 +188,7 @@ def main():
         print("File path {} does not exist. Exiting...".format(filename))
         exit(1)
 
+    print("Started at {}, checking file {}:".format(datetime.datetime.now(), filename))
     print("Reading file for inventory... ", end='')
     try:
         with open(filename, mode='r', encoding='utf-8-sig') as file:
