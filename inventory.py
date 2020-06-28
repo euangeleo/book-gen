@@ -16,16 +16,12 @@ import unicodedata
 # Global variables for settings:
 
 # helper functions
-def getinventory(filename):
+def getinventory(lines):
     """Given a filename, generate the character inventory of that file"""
 
     inventory = set([])
-
-    with open(filename, mode='r', encoding='utf-8-sig') as file:
-        print("Reading file for inventory...", end = '')
-        contents = file.read()
-        inventory.update(list(contents))
-        print("done.\n")
+    for line in lines:
+        inventory.update(list(line))
 
     return inventory
 
@@ -110,13 +106,25 @@ def main():
         print("Usage: inventory.py text_file")
         exit(1)
 
-    if not os.path.isfile(sys.argv[1]):
-        print("File path {} does not exist. Exiting...".format(sys.argv[1]))
+    filename = sys.argv[1]
+    if not os.path.isfile(filename):
+        print("File path {} does not exist. Exiting...".format(filename))
         exit(1)
 
-    prettyprint(sorted(getinventory(sys.argv[1])))
+    print("Reading file for inventory... ", end = '')
+    try:
+        with open(filename, mode='r', encoding='utf-8-sig') as file:
+           # CAUTION: reading the whole file into memory
+            lines = file.readlines()
+            print("done.\n")
+    except IOError:
+        print("Could not read {}".format(filename))
+        exit(1)
+
+    prettyprint(sorted(getinventory(lines)))
     exit(0)
 
 
 if __name__ == "__main__":
     main()
+
