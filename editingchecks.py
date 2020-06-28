@@ -21,12 +21,12 @@ CHARS_WORTH_CHECKING = set([chr(8211),  # &ndash;
                             chr(8212),  # &mdash;
                             chr(34),    # "
                             chr(39),    # '
-                            chr(8216),  # &lsquo;
-                            chr(8217),  # &rsquo;
-                            chr(8220),  # &ldquo;
-                            chr(8221)]) # &rdquo;
+                            chr(8216),  # &lsquo; ‘
+                            chr(8217),  # &rsquo; ’
+                            chr(8220),  # &ldquo; “
+                            chr(8221)]) # &rdquo; ”
 
-# TODO: add chr(8216) ‘, 8217 ’, 8220 “, 8221 ”, 8230 … versus ..., 9674 ◊ in threes
+# TODO: add checks for 8230 … versus ..., 9674 ◊ in threes
 
 # the number of characters to display to the left and right of a character of interest
 SNIPPET_RADIUS = 10
@@ -53,7 +53,6 @@ def verify(character, left_context, right_context):
     defined = [chr(8211), chr(8212), chr(8216), chr(8217), chr(8220), chr(8221)] # en dash, em dash, lsquo, rsquo, ldquo, rdquo
 
     # Verify that the character is one we can check for
-
     if character not in defined:
         print("Error in /verify/: Checks for {} have not been defined".format(character), file=sys.stderr)
         return False
@@ -98,15 +97,16 @@ def verify(character, left_context, right_context):
             return False
 
 
-def runchecks(filename, charlist):
+def runchecks(lines, charlist):
     """Given a list of charcters to check, run editing checks on a file"""
 
-    with open(filename, mode='r', encoding='utf-8-sig') as file:
-        print("Reading file for search...", end='')
-        # CAUTION: reading the whole file into memory
-        lines = file.readlines()
-        print("done.\n")
+    # Run check for bad whitespace; single space is chr()
+    print("Checking for double spaces:")
+    for index, line in enumerate(lines):
+        # Q: HOW TO FIND ADJACENT WHITESPACE? LOOK AT ALL SUBSTRINGS OF LENGTH 2?
+        continue #TODO
 
+    # Run additional checks for just those elements that are found in the doc
     for item in charlist:
         found_none = True
         try:
@@ -159,14 +159,27 @@ def main():
         print("File path {} does not exist. Exiting...".format(filename))
         exit(1)
 
-    char_inventory = getinventory(filename)
+    print("Reading file for inventory... ", end = '')
+    try:
+        with open(filename, mode='r', encoding='utf-8-sig') as file:
+            # CAUTION: reading the whole file into memory
+            lines = file.readlines()
+            print("done.\n")
+    except IOError:
+        print("Could not read {}".format(filename))
+        exit(1)
+
+    char_inventory = getinventory(lines)
     prettyprint(sorted(char_inventory))
     # Limit the characters to be checked to only those that are found in the document
     chars_to_check = sorted(list(char_inventory.intersection(CHARS_WORTH_CHECKING)))
-    exitcode = runchecks(filename, chars_to_check)
+    exitcode = runchecks(lines, chars_to_check)
     if exitcode == 0:
         print("Finished with no errors.")
-    exit(exitcode)
+        exit(0)
+    else:
+        print("Finished with errors.")
+        exit(exitcode)
 
 
 if __name__ == "__main__":
