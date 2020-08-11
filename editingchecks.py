@@ -38,6 +38,7 @@ PUNCTUATION = set(['.', ',', '?', '!'])
 # the number of characters to display to the left and right of a character of interest
 SNIPPET_RADIUS = 10
 
+
 # helper functions
 def findall(string, character):
     """Find all positions of a character in a string"""
@@ -140,7 +141,8 @@ def runchecks(lines, charlist):
 
     # Run additional checks for elements in charlist
     for item in charlist:
-        found_none = True
+        found_any = False
+        any_unverified = False
         try:
             print("Searching for {}, {}:".format(item, unicodedata.name(item)))
         except ValueError:
@@ -153,29 +155,39 @@ def runchecks(lines, charlist):
     # If the context isn't correct, then print the char and its context
     # For any non-ASCII chars that haven't been checked yet, just show the context
             if item in line:
-                found_none = False
-                print("Line {}:".format(index+1))
-                item_indices = findall(line, item)
+                found_any = True
+                # Set a flag that will indicate if any instances are unverified (in which case we'll need to print)
+                unverified_this_line = False
+                # Initialize a print buffer; if the occurrence is verified, we won't print
+                # TODO: Make the print/don't print sensitive to a --verbose option
+                buffer = "Line {}:\n".format(index+1)
+                item_positions = findall(line, item)
                 # determine context
-                for index in item_indices:
-                    if index < SNIPPET_RADIUS:
+                for position in item_positions:
+                    if position < SNIPPET_RADIUS:
                         left_extent = 0
                     else:
-                        left_extent = index - SNIPPET_RADIUS
+                        left_extent = position - SNIPPET_RADIUS
 
-                    left_context = line[left_extent:index]
-                    right_context = line[index + 1:index + 1 + SNIPPET_RADIUS]
+                    left_context = line[left_extent:position]
+                    right_context = line[position + 1:position + 1 + SNIPPET_RADIUS]
 
                     if verify(item, left_context, right_context):
                         continue
                         # Removing these prints will save lots of output space
                         # print("  pos {}: okay".format(index))
                     else:
-                        print("  pos {}: ...{}{}{}...".format(index, left_context, item, right_context))
-                print()
-        if found_none:
-            # This should no longer happen if the character inventory limits the characters to check
+                        any_unverified, unverified_this_line = True, True
+                        buffer += "  pos {}: ...{}{}{}...\n".format(position, left_context, item, right_context)
+
+                if unverified_this_line:
+                    print(buffer)
+
+        if not found_any:
+            # This should not happen if the character inventory limits the characters to check
             print("None found.")
+        elif not any_unverified:
+            print("All occurrences verified.")
         print()
     return 0
 
