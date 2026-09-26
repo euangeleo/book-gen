@@ -13,38 +13,30 @@ import sys
 import os
 import unicodedata
 import datetime
+from collections import Counter
 
 # Global variables for settings:
 
 # helper functions
 def getinventory(lines):
-    """Given a filename, generate the character inventory of that file"""
+    """Given a filename, return the character inventory of that file, as a Counter"""
 
-    inventory = set([])
+    inventory = Counter()
     for line in lines:
         inventory.update(list(line))
 
     return inventory
 
 
-def prettyprint(char_list):
-    """Print a list of characters in an easy to read way. Assume the list is sorted."""
+def prettyprint(char_counter):
+    """Print a list of characters in an easy to read way."""
+    
+    char_list = sorted(char_counter.keys())
 
     print('ASCII LETTERS:')
 
-    printed_something = False
     for index in range(65, 91):
-        if chr(index) in char_list:
-            if chr(index).lower() in char_list:
-                print(chr(index), chr(index).lower())
-            else:
-                print(chr(index))
-            printed_something = True
-        elif chr(index).lower() in char_list:
-            print(' ', chr(index).lower())
-            printed_something = True
-        elif index == 90 and not printed_something:
-            print("(none)")
+        print(f"{chr(index)} ({char_counter[chr(index)]:6d}), {chr(index).lower()} ({char_counter[chr(index).lower()]:6d})")
 
     print('\nPUNCTUATION, NUMBERS, SYMBOLS:')
 
@@ -53,7 +45,7 @@ def prettyprint(char_list):
     printed_something = False
     for index in indices:
         if chr(index) in char_list:
-            print(chr(index))
+            print(f"{chr(index)} ({char_counter[chr(index)]})")
             printed_something = True
         elif index == 127 and not printed_something:
             print("(none)")
@@ -64,19 +56,19 @@ def prettyprint(char_list):
     for index in range(1, 33):
         if chr(index) in char_list:
             if index == 9:
-                print("\\t, index {}, tab".format(index))
+                print(f"\\t, index {index}, tab ({char_counter[chr(index)]})")
                 printed_something = True
                 continue
             elif index == 10:
-                print("\\n, index {}, newline".format(index))
+                print(f"\\n, index {index}, newline ({char_counter[chr(index)]})")
                 printed_something = True
                 continue
             else:
                 try:
-                    print("{}, index {}, {}".format(chr(index), index, unicodedata.name(chr(index))))
+                    print(f"{chr(index)}, index {index}, {unicodedata.name(chr(index))} ({char_counter[chr(index)]})")
                     printed_something = True
                 except ValueError:
-                    print("{}, index {}, (no Unicode name)".format(chr(index), index))
+                    print(f"{chr(index)}, index {index}, (no Unicode name)  ({char_counter[chr(index)]})")
                     printed_something = True
         elif index == 32 and not printed_something:
             print("(none)")
@@ -88,10 +80,10 @@ def prettyprint(char_list):
     if above_ascii:
         for char in above_ascii:
             try:
-                print("{}, index {}, {}".format(char, ord(char), unicodedata.name(char)))
+                print(f"{char}, index {ord(char)} ({char_counter[char]}), {unicodedata.name(char)}")
                 printed_something = True
             except ValueError:
-                print("{}, index {}, (no Unicode name)".format(char, ord(char)))
+                print(f"{char}, index {ord(char)} ({char_counter[char]}), (no Unicode name)")
                 printed_something = True
     else:
         print("(none)")

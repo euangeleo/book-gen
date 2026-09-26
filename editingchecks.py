@@ -16,6 +16,7 @@ import datetime
 from itertools import groupby
 from operator import itemgetter
 from inventory import getinventory, prettyprint
+from collections import Counter
 
 
 # Global variables for settings:
@@ -34,7 +35,7 @@ CHARS_WORTH_CHECKING = set([chr(8211),  # &ndash;
 # TODO: add checks for ... instead of &hellip;, 9674 ◊ in threes
 
 # Punctuation in use
-PUNCTUATION = set(['.', ',', '?', '!', '—', '…'])
+PUNCTUATION = set(['.', ',', '?', '!', '—', '…', chr(8216), chr(8217), chr(8220), chr(8221)])
 
 # the number of characters to display to the left and right of a character of interest
 SNIPPET_RADIUS = 10
@@ -55,7 +56,7 @@ def findall_blank(string):
     return [i for i, item in enumerate(string) if item.isspace()]
 
 
-def verify(character, left_context, right_context):
+def verify(character, line, left_context, right_context):
     """
     Returns a truth value indicating whether a character is properly used
     in the supplied context. Currently defined only for:
@@ -111,35 +112,40 @@ def verify(character, left_context, right_context):
 
     # Verification for left single quote OR left double quote: to left is space, to right is alpha (not alphanumeric?)
     if character == chr(8216) or character == chr(8220):
+        matching_left_and_right = line.count(character) == line.count(chr(8217)) if character == chr(8216) else line.count(character) == line.count(chr(8221))
         if len(left_context) > 0 and len(right_context) > 0:
-            return left_context[-1].isspace() and right_context[0].isalpha()
+            return left_context[-1].isspace() and right_context[0].isalpha() and matching_left_and_right
         elif len(left_context) == 0:
-            return right_context[0].isalpha()
+            return right_context[0].isalpha() and matching_left_and_right
         else:
-            return False
+            return matching_left_and_right
 
-    # Verification for right single quote: to left is alpha or punct, to right is space OR (as apostrophe in contractions) left & right only alpha
+    # Verification for right single quote: to left is alpha or punct, 
+    #  to right is space OR (as apostrophe in contractions) left & right only alpha,
+    #  AND there must be a matching number of left and right single quotes'
+    #  BUT right single quote could be just an apostrophe, in which case it might not have a matching number
     if character == chr(8217):
+        matching_left_and_right = line.count(character) == line.count(chr(8216))
         if len(left_context) > 0 and len(right_context) > 0:
-            return ((left_context[-1].isalpha() or left_context[-1] in PUNCTUATION) and right_context[0].isspace()) or \
-                   (left_context[-1].isalpha() and right_context[0].isalpha())
+            return (left_context[-1].isalpha() and right_context[0].isalpha()) or ((left_context[-1].isalpha() or left_context[-1] in PUNCTUATION) and right_context[0].isspace() and matching_left_and_right)
         elif len(right_context) == 0:
-            return left_context[-1].isalpha() or left_context[-1] in PUNCTUATION
+            return left_context[-1].isalpha() or left_context[-1] in PUNCTUATION and matching_left_and_right
         else:
-            return False
+            return matching_left_and_right
 
     # Verification for right double quote: to left is alpha or punct, to right is space
     if character == chr(8221):
+        matching_left_and_right = line.count(character) == line.count(chr(8220))
         if len(left_context) > 0 and len(right_context) > 0:
-            return (left_context[-1].isalpha() or left_context[-1] in PUNCTUATION) and right_context[0].isspace()
+            return (left_context[-1].isalpha() or left_context[-1] in PUNCTUATION) and right_context[0].isspace() and matching_left_and_right
         elif len(right_context) == 0:
-            return left_context[-1].isalpha() or left_context[-1] in PUNCTUATION
+            return left_context[-1].isalpha() or left_context[-1] in PUNCTUATION and matching_left_and_right
         else:
-            return False
+            return matching_left_and_right
 
 
 def runchecks(lines, charlist):
-    """Given a list of charcters to check, run editing checks on a file"""
+    """Given a list of characters to check, run editing checks on a file"""
 
     # Run check for bad blank space: two or more adjacent blanks, blanks at end of line
     print("Checking for blank space problems:")
@@ -201,7 +207,7 @@ def runchecks(lines, charlist):
                 unverified_this_line = False
                 # Initialize a print buffer; if the occurrence is verified, we won't print
                 # TODO: Make the print/don't print sensitive to a --verbose option
-                buffer = "Line {}:\n".format(index+1)
+                buffer = f"Line {index+1}:\n"
                 item_positions = findall(line, item)
                 # determine context
                 for position in item_positions:
@@ -213,7 +219,7 @@ def runchecks(lines, charlist):
                     left_context = line[left_extent:position]
                     right_context = line[position + 1:position + 1 + SNIPPET_RADIUS]
 
-                    if verify(item, left_context, right_context):
+                    if verify(item, line, left_context, right_context):
                         continue
                         # Removing these prints will save lots of output space
                         # print("  pos {}: okay".format(index))
@@ -238,7 +244,7 @@ def main():
     """Run editing checks on a text document"""
 
     # Check for proper command line usage
-    if len(sys.argv) is not 2:
+    if len(sys.argv) != 2:
         print("Usage: editingchecks.py text_file")
         exit(1)
 
@@ -259,10 +265,10 @@ def main():
         exit(1)
 
     char_inventory = getinventory(lines)
-    prettyprint(sorted(char_inventory))
+    prettyprint(char_inventory)
     # Limit the characters to be checked to only those that are found in the document
-    chars_to_check = sorted(list(char_inventory.intersection(CHARS_WORTH_CHECKING)
-                                 | char_inventory.difference([chr(i) for i in range(128)])))
+    chars_to_check = sorted(list(set(char_inventory.keys()).intersection(CHARS_WORTH_CHECKING)
+                                 | set(char_inventory.keys()).difference([chr(i) for i in range(128)])))
     exitcode = runchecks(lines, chars_to_check)
     if exitcode == 0:
         print("Finished with no errors.")
