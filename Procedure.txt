@@ -23,10 +23,46 @@ NOTE: Use Pandoc (pandoc.org) to convert from markdown to HTML or LaTeX?
 
 Editing:
 -- check for consistency with em-dashes
+    ==> no spaces around them
+    ==> they might open or close a quotation, so these are okay:
+           “—but what about donuts?” he added hastily.
+           “Didn’t you—” but she was cut off
+
+From Home, James:
+Line 14: “How is everyone feeling?” my dad asks us via the rearview mirror. “I can do a little driving tour if you guys aren’t too tired. We can go see downtown and the university campus. Missoula isn’t that big,”—You said it! I think to myself—“so it wouldn’t take long.”
+
+-- check for consistency with whitespace
+    ==> Python str.isspace() can be useful, but might not find space followed by newline
+    ==> https://stackoverflow.com/questions/2361945/detecting-consecutive-integers-in-a-list
+    ==> space chr(32), nbsp chr()00A0, zero-width space chr()100B, narrow nbsp chr()202F, word joiner chr()2060, ideographic space chr()3000, zero-width nbsp chr()FEFF
+
 -- check for consistency with en-dashes
+    ==> alphanum space en space alphanum
+    ==> alphanum en alphanum
 -- check for consistency with turned double quotes, turned single quotes
+    ==> space rightquote alphanum
+    ==> {alphanum or comma or period } leftquote space
 -- check that there are no straight quotes (single or double)
+    ==> only use prime and double-prime, as for feet and inches?
+-- check for dashes?
+    ==> not used? only hyphen instead?
 -- check for consistency in whitespace?
+    ==> eg no double spaces?
+-- check for consistency in commas?
+    ==> all commas with alphanum on the left, one space on the right, unless in a number?
+-- check that every period has alphanum on the left, whitespace on the right? Exceptions could be decimal numbers, but should be rare enough that they could be manually checked
+
+What kind of output?
+   -- show all examples of em and en dashes with a snippet plus line number
+   -- snippets for turned quotes that don't fit pattern plus line number
+   -- snippets for straight quotes plus line number
+   -- snippets for extra spaces plus line number
+   -- snippets for bad commas plus line number
+   -- snippets for bad periods plus line number
+
+   -- snippets for all other (rarer) punctuation or symbols found in the inventory?
+
+incrementla start: print a snip-pet and line number for all em dashes (or all of some list)
 
 Processing:
   ebook:
@@ -37,9 +73,19 @@ Processing:
 
   print:
      convert to LaTeX format
-     insert text into pre-worked "template" with front/back matter?
+     insert text into pre-worked "template" with front/back matter? will need to generate ToC
      make sure style file is correct
      generate PDF?
+
+Specification:
+Q: What formatting options do I want in the book manuscript?
+  -- chapters (numbers only? or with titles?)
+  -- section breaks within a chapter
+  -- paragraphs first-line indented, fully justified
+  -- numbered lists?
+  -- "hand-written" block of text (as when copying a letter), L & r indented, left justified (ragged right edge)
+  -- hand-written, two-column lists
+  -- emoji support
 
 ==OLD==
 
@@ -74,4 +120,4 @@ X- fix link to review? (maybe?) (print? ebook?)
 ’ turned apostrophe
 ‘
 
-Font: Johnny Mac Scrawl created by Ænigma Fonts, fee required for commercial use.
+Font: Johnny Mac Scrawl created by Ænigma Fonts, fee required for commercial use. (NOT USED)
