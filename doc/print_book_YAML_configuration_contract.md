@@ -106,6 +106,73 @@ The page dimensions apply to every page in the output PDF.
 
 # 5. Margin Configuration
 
+The `margins` section defines the physical margins of the printed book.
+
+Example:
+
+```YAML
+margins:
+  top: 0.75in
+  bottom: 0.75in
+  inner: 0.5in
+  outer: 0.625in
+```
+
+The following properties MUST be specified:
+
+- `top`
+- `bottom`
+- `inner`
+- `outer`
+
+All values MUST include physical units.
+
+The `inner` margin is the margin adjacent to the binding/spine. The `outer` margin is the margin adjacent to the outside edge of the page.
+
+The `inner` margin applies to the binding side of both left-hand and right-hand pages. The LaTeX renderer MUST use the appropriate physical margin on each page when producing a two-sided document.
+
+## 5.1 KDP Minimum Inner Margin
+
+The configured `inner` margin represents the margin desired for the print edition. It MUST NOT be smaller than the minimum required by the selected print platform.
+
+For KDP output, the application MUST determine the minimum required inner margin from the final page count using the KDP-specific rules implemented by the application.
+
+The KDP rules MUST NOT be duplicated in each book's YAML configuration.
+
+For example, if a book has 276 pages and KDP's applicable minimum inner margin is 0.5in, then:
+
+```YAML
+margins:
+  inner: 0.5in
+```
+
+is valid, while:
+
+```YAML
+margins:
+  inner: 0.375in
+```
+
+is invalid for that KDP edition.
+
+The configuration parser MAY validate that the margin values are physically valid, but validation of the `inner` margin against page-count-dependent platform requirements belongs to the print-platform validation layer.
+
+## 5.2 Physical Margin Requirements
+
+All margin values MUST be positive.
+
+The configured `inner` margin SHOULD be greater than or equal to the configured `outer` margin unless a particular print specification explicitly permits otherwise.
+
+The margin configuration describes the **final physical margins**, rather than the LaTeX commands used to produce them. The translation into `memoir`/LuaLaTeX configuration belongs to the rendering layer.
+
+## 5.3 Page Count and Margin Calculation
+
+The final page count cannot necessarily be known before typesetting. Consequently, the application MUST determine the applicable platform requirements as part of the PDF-generation process.
+
+The margin configuration itself MUST NOT contain a fixed gutter value calculated from an anticipated page count.
+
+The KDP-specific calculation SHOULD be implemented independently of the book configuration, allowing the same book configuration to be validated or rendered for different print platforms in the future.
+
 The `margins` section defines the margins of the printed book.
 
 Example:
