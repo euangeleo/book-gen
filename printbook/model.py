@@ -159,22 +159,6 @@ class LineBreak(Inline):
 
 
 @dataclass(frozen=True)
-class TableOfContentsEntry:
-    """One chapter entry in the print book's table of contents."""
-
-    title: InlineContent = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class TableOfContents(Block):
-    """The semantic table of contents for the print book."""
-
-    heading: InlineContent = field(default_factory=list)
-    entries: list[TableOfContentsEntry] = field(
-        default_factory=list
-    )
-
-@dataclass(frozen=True)
 class RenderingStyle:
     """Resolved rendering information associated with model content.
 
@@ -366,6 +350,23 @@ class Table(Block):
 
 
 BlockContent: TypeAlias = list[Block]
+
+
+@dataclass(frozen=True)
+class TableOfContentsEntry:
+    """One chapter entry in the print book's table of contents."""
+
+    title: InlineContent = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class TableOfContents(Block):
+    """The semantic table of contents for the print book."""
+
+    heading: InlineContent = field(default_factory=list)
+    entries: list[TableOfContentsEntry] = field(
+        default_factory=list
+    )
 
 
 @dataclass(frozen=True)

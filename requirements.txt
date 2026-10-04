@@ -2,3 +2,6 @@
 
 beautifulsoup4>=4.12,<5
 PyYAML==6.0.3
+lxml>=5.0.0
+tinycss2==1.5.1
+cssselect2>=0.8.0
