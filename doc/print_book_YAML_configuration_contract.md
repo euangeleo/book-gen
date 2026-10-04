@@ -22,7 +22,7 @@ The YAML configuration MUST NOT contain the semantic representation of the book'
 
 ---
 
-# 2. File Location
+## 2. File Location
 
 The configuration file SHOULD be named:
 
@@ -55,7 +55,7 @@ Paths in the YAML configuration are relative to the directory containing `book.y
 
 ---
 
-# 3. Book Metadata
+## 3. Book Metadata
 
 The `book` section contains metadata needed by the print pipeline.
 
@@ -78,7 +78,7 @@ Additional metadata MAY be added later if required by the print pipeline.
 
 ---
 
-# 4. Page Configuration
+## 4. Page Configuration
 
 The `page` section defines the physical dimensions of the printed page.
 
@@ -107,7 +107,7 @@ The page dimensions apply to every page in the output PDF.
 
 ---
 
-# 5. Margin Configuration
+## 5. Margin Configuration
 
 The `margins` section defines the desired physical margins of the printed book.
 
@@ -134,7 +134,7 @@ The `inner` margin is the margin adjacent to the binding/spine. The `outer` marg
 
 The `inner` margin applies to the binding side of both left-hand and right-hand pages. The LaTeX renderer MUST use the appropriate physical margin on each page when producing a two-sided document.
 
-## 5.1 KDP Minimum Inner Margin
+### 5.1 KDP Minimum Inner Margin
 
 The configured `inner` margin represents the desired **final physical inner margin** for the print edition.
 
@@ -164,7 +164,7 @@ The configuration parser MAY validate that the margin values are physically vali
 
 The KDP-specific gutter requirements SHOULD be encapsulated by the KDP implementation rather than exposed as per-book configuration parameters.
 
-## 5.2 Physical Margin Requirements
+### 5.2 Physical Margin Requirements
 
 All margin values MUST be positive.
 
@@ -172,7 +172,7 @@ The configured `inner` margin SHOULD be greater than or equal to the configured 
 
 The margin configuration describes the **final physical margins**, rather than the LaTeX commands used to produce them. The translation into `memoir`/LuaLaTeX configuration belongs to the rendering layer.
 
-## 5.3 Page Count and Margin Validation
+### 5.3 Page Count and Margin Validation
 
 The final page count cannot necessarily be known before typesetting. Consequently, validation of page-count-dependent platform requirements MUST occur as part of the PDF-generation process, after a reliable final page count is available.
 
@@ -182,7 +182,7 @@ The KDP-specific minimum-margin rules MUST be implemented independently of the b
 
 ---
 
-# 6. Font Configuration
+## 6. Font Configuration
 
 The `fonts` section defines the font families used by the print edition and maps those font-family names to local font files.
 
@@ -191,17 +191,17 @@ Example:
 ```yaml
 fonts:
   body: "Linux Libertine"
-
+  sms: "Liberation Sans"
   handwriting:
     default_variant: print
     print: "Johnny Mac Scrawl BRK"
     script: "Dancing Script"
 
   paths:
-    "Dancing Script": fonts/DancingScript-Regular.otf
-    "Johnny Mac Scrawl BRK": fonts/JMScrawl.ttf
-    "Symbola": fonts/Symbola.ttf
     "Linux Libertine": fonts/LinLibertine_R.otf
+    "Dancing Script": fonts/DancingScript-Regular.otf
+    "Johnny Mac Scrawl BRK": fonts/jmacscrl.ttf
+    "Liberation Sans": fonts/LiberationSans-Regular.ttf
 ```
 
 The configuration makes a deliberate distinction between:
@@ -244,7 +244,7 @@ rather than:
 LinLibertine_R.otf
 ```
 
-## 6.1 Body Font
+### 6.1 Body Font
 
 The `body` property specifies the default body font family for the print edition.
 
@@ -261,7 +261,7 @@ An explicitly specified font family in the source CSS MUST take precedence over 
 
 The `body` property is therefore a default, not a replacement for CSS-specific font-family information.
 
-## 6.2 Font Paths
+### 6.2 Font Paths
 
 The `paths` mapping associates a font-family name with the local font file used to render that family.
 
@@ -271,7 +271,7 @@ For example:
 paths:
   "Linux Libertine": fonts/LinLibertine_R.otf
   "Dancing Script": fonts/DancingScript-Regular.otf
-  "Johnny Mac Scrawl BRK": fonts/JMScrawl.ttf
+  "Johnny Mac Scrawl BRK": fonts/jmacscrl.ttf
   "Symbola": fonts/Symbola.ttf
 ```
 
@@ -287,7 +287,7 @@ Later content validation or rendering validation MAY treat a missing font file a
 
 The configuration parser SHOULD return the resolved font path as a `Path` value when exposing font configuration to the rest of the application.
 
-## 6.3 CSS Font-Family Names
+### 6.3 CSS Font-Family Names
 
 The source CSS is authoritative for specific font-family choices.
 
@@ -327,7 +327,7 @@ Such role-based font configuration is outside the initial schema.
 
 ---
 
-# 7. Handwriting Configuration
+## 7. Handwriting Configuration
 
 The `handwriting` section specifies the font-family associated with each supported handwriting variant.
 
@@ -376,7 +376,7 @@ HandwritingVariant.SCRIPT
 
 while leaving the actual font-family choice to configuration.
 
-## 7.1 Default Handwriting Variant
+### 7.1 Default Handwriting Variant
 
 `default_variant` MUST specify the variant used when the XHTML identifies handwriting without specifying a more specific variant.
 
@@ -404,7 +404,7 @@ The parser MUST NOT require both `script` and `print` font families merely becau
 
 A variant only needs to be configured when that variant can actually be produced by the source XHTML or is explicitly configured for use by the book.
 
-## 7.2 Multiple Handwriting Variants
+### 7.2 Multiple Handwriting Variants
 
 If the EPUB distinguishes multiple handwriting variants, the configuration MAY specify both:
 
@@ -422,7 +422,7 @@ The `default_variant` applies when the XHTML identifies handwriting without prov
 
 The font-family associated with every handwriting variant that can be produced by the XHTML MUST have a corresponding entry in `fonts.paths`.
 
-## 7.3 Handwriting Source-Class Mappings
+### 7.3 Handwriting Source-Class Mappings
 
 If the XHTML uses distinct source classes for handwriting variants, the configuration MAY specify explicit mappings.
 
@@ -457,7 +457,7 @@ The handwriting configuration identifies the semantic variant and its configured
 
 ---
 
-# 8. Sections
+## 8. Sections
 
 The `sections` list defines the complete sequential structure of the printed book.
 
@@ -509,7 +509,7 @@ The `file` value identifies the XHTML source file.
 
 ---
 
-# 9. Chapter Metadata
+## 9. Chapter Metadata
 
 A chapter MAY contain optional metadata useful to the print renderer.
 
@@ -529,7 +529,7 @@ Chapter-specific configuration SHOULD only be added when the print edition requi
 
 ---
 
-# 10. Validation Requirements
+## 10. Validation Requirements
 
 The YAML parser MUST validate at least the following.
 
@@ -562,6 +562,7 @@ A missing configured font file SHOULD produce a warning during configuration loa
 Every font-family name referenced by:
 
 * `fonts.body`;
+* `fonts.sms`;
 * `fonts.handwriting.print`;
 * `fonts.handwriting.script`;
 * other explicitly configured font-family settings;
@@ -596,7 +597,7 @@ The YAML configuration parser MUST NOT contain the KDP page-count table itself.
 
 ---
 
-# 11. Separation of Configuration and Semantic Content
+## 11. Separation of Configuration and Semantic Content
 
 The YAML configuration describes the **configuration of a print edition**.
 
@@ -639,7 +640,7 @@ The semantic model retains the font-family name through `RenderingStyle` where t
 
 ---
 
-# 12. Deliberately Excluded Configuration
+## 12. Deliberately Excluded Configuration
 
 The initial YAML schema does not include configuration for:
 

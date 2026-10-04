@@ -154,6 +154,27 @@ class Border:
 
 
 @dataclass(frozen=True)
+class LineBreak(Inline):
+    """A deliberate line break within inline content."""
+
+
+@dataclass(frozen=True)
+class TableOfContentsEntry:
+    """One chapter entry in the print book's table of contents."""
+
+    title: InlineContent = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class TableOfContents(Block):
+    """The semantic table of contents for the print book."""
+
+    heading: InlineContent = field(default_factory=list)
+    entries: list[TableOfContentsEntry] = field(
+        default_factory=list
+    )
+
+@dataclass(frozen=True)
 class RenderingStyle:
     """Resolved rendering information associated with model content.
 
@@ -329,9 +350,17 @@ class TableRow(Block):
 
 
 @dataclass(frozen=True)
+class TableColumn:
+    """Rendering information for one table column."""
+
+    width: Length | None = None
+
+
+@dataclass(frozen=True)
 class Table(Block):
     """Tabular content consisting of ordered rows."""
 
+    columns: list[TableColumn] = field(default_factory=list)
     rows: list[TableRow] = field(default_factory=list)
     rendering_style: RenderingStyle | None = None
 
