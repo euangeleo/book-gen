@@ -33,7 +33,7 @@ def addparagraphs(lines, outfile):
     with open(outfile, mode='w', encoding='utf-8-sig') as output:
         for line in lines:
             line = line.rstrip('\n')
-            output.write("<p>{}</p>\n".format(line))
+            output.write(f"<p>{line}</p>\n")
     print("done.")
     return(0)
 
@@ -50,10 +50,10 @@ def main():
     # Check the input file before starting the checks
     filename = sys.argv[1]
     if not os.path.isfile(filename):
-        print("File path {} does not exist. Exiting...".format(filename))
+        print(f"File path {filename} does not exist. Exiting...")
         exit(1)
 
-    print("Started at {}, checking file {}:".format(datetime.datetime.now(), filename))
+    print(f"Started at {datetime.datetime.now()}, checking file {filename}:")
     print("Reading file... ", end='')
     try:
         with open(filename, mode='r', encoding='utf-8-sig') as file:
@@ -61,7 +61,7 @@ def main():
             lines = file.readlines()
             print("done.\n")
     except IOError:
-        print("Could not read {}".format(filename))
+        print(f"Could not read {filename}")
         exit(1)
 
     # ASSUMPTIONS:
