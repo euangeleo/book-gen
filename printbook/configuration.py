@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import warnings
 from dataclasses import dataclass
+from collections import Counter
 from decimal import Decimal
 from pathlib import Path
 
@@ -416,13 +417,7 @@ def _validate_section_structure(
     sections: tuple[SectionConfiguration, ...],
 ) -> None:
     """Validate the required high-level book structure."""
-    counts = {
-        section_type: sum(
-            section.section_type == section_type
-            for section in sections
-        )
-        for section_type in SectionType
-    }
+    counts = Counter(section.section_type for section in sections)
 
     if counts[SectionType.TITLE_PAGE] > 1:
         raise ValueError(
@@ -448,6 +443,30 @@ def _validate_section_structure(
         raise ValueError(
             "A book may contain at most one back-matter section."
         )
+
+    # Validate the required sequential order:
+    order_index = {
+        SectionType.TITLE_PAGE: 0,
+        SectionType.FRONT_MATTER: 1,
+        SectionType.TABLE_OF_CONTENTS: 2,
+        SectionType.CHAPTER: 3,
+        SectionType.BACK_MATTER: 4,
+    }
+
+    previous_index = -1
+
+    for section in sections:
+        current_index = order_index[section.section_type]
+
+        if current_index < previous_index:
+            raise ValueError(
+                "Book sections are not in the required order: "
+                "title page, front matter, table of contents, "
+                "chapters, back matter: "
+                f"{section.section_type} found out of order"
+            )
+
+        previous_index = current_index
 
 
 def _parse_section_type(
