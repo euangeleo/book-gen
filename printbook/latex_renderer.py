@@ -1,4 +1,3 @@
-```python
 """Render a semantic print book as LuaLaTeX source.
 
 This module is the final transformation stage before LaTeX compilation.
@@ -1900,4 +1899,3 @@ class LatexRenderer:
             result.pop()
 
         return result
-```

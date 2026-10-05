@@ -80,7 +80,7 @@ class ParsedElement:
     style: ResolvedCssStyle
 
 
-class XhtmlBookParser:
+class XhtmlParser:
     """Parse configured XHTML sections into a semantic Book."""
 
     def __init__(
