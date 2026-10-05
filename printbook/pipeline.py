@@ -34,24 +34,14 @@ def build_print_book(book_directory: Path, output_directory: Path) -> Path:
 
     configuration = load_configuration(book_directory)
 
-    book = parse_book(
-        configuration=configuration,
-    )
+    book = XhtmlParser(configuration).parse()
 
-    latex_source = render_latex(
-        book=book,
-        configuration=configuration,
-    )
+    latex_source = LatexRenderer(configuration).render(book)
 
     tex_path = output_directory / "book.tex"
-    tex_path.write_text(
-        latex_source,
-        encoding="utf-8",
-    )
+    tex_path.write_text(latex_source, "utf-8")
 
-    pdf_path = compile_latex(
-        tex_path=tex_path,
-    )
+    pdf_path = compile_latex(tex_path)
 
     validate_kdp_requirements(
         pdf_path=pdf_path,
