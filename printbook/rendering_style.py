@@ -130,6 +130,10 @@ class RenderingStyleConverter:
 
         return style
 
+    def parse_length(self, value: str, *, property_name: str) -> Length:
+        """Parse one CSS length into the semantic Length model."""
+        return self._parse_length(value, property_name=property_name)
+
     @staticmethod
     def _font_family(
         css_style: ResolvedCssStyle,
@@ -423,11 +427,7 @@ class RenderingStyleConverter:
         )
 
 
-def _parse_length(
-    value: str,
-    *,
-    property_name: str,
-) -> Length:
+def _parse_length(value: str, *, property_name: str) -> Length:
     """Parse a supported CSS length value."""
     match = _LENGTH_PATTERN.fullmatch(value)
 

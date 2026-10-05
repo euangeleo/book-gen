@@ -92,28 +92,27 @@ class MarginConfiguration:
 
 
 @dataclass(frozen=True)
-class FontConfiguration:
-    """Font families and their associated local font files."""
+class HandwritingConfiguration:
+    """Configuration for handwriting-style text."""
 
-    body: str
-    handwriting_script: str | None
-    handwriting_print: str | None
-    paths: dict[str, Path]
+    default_variant: HandwritingVariant
+    print: str
+    script: str
 
 
 @dataclass(frozen=True)
-class HandwritingConfiguration:
-    """Mapping between EPUB handwriting classes and semantic variants."""
+class FontConfiguration:
+    """Fonts available to the print edition.
 
-    default_variant: HandwritingVariant
-    class_mappings: dict[str, HandwritingVariant]
+    Font family names are kept separate from their filesystem paths.
+    The renderer works with family names, while the paths allow fontspec
+    to locate the actual font files.
+    """
 
-    def get_variant(self, class_name: str) -> HandwritingVariant:
-        """Return the semantic variant associated with an EPUB CSS class."""
-        if class_name in self.class_mappings:
-            return self.class_mappings[class_name]
-
-        return self.default_variant
+    body: str
+    sms: str
+    handwriting: HandwritingConfiguration
+    paths: dict[str, Path]
 
 
 @dataclass(frozen=True)
@@ -134,7 +133,6 @@ class PrintBookConfiguration:
     page: PageConfiguration
     margins: MarginConfiguration
     fonts: FontConfiguration
-    handwriting: HandwritingConfiguration
     sections: tuple[SectionConfiguration, ...]
 
 
@@ -155,9 +153,10 @@ def load_configuration(
     if not isinstance(raw_configuration, dict):
         raise ValueError("The YAML configuration must contain a mapping.")
 
-    directory = configuration_path.parent
-
-    return _create_configuration(raw_configuration, directory)
+    return _create_configuration(
+        raw_configuration,
+        configuration_path.parent,
+    )
 
 
 def _create_configuration(
@@ -165,18 +164,15 @@ def _create_configuration(
     directory: Path,
 ) -> PrintBookConfiguration:
     """Create a typed configuration from parsed YAML data."""
-    fonts = _parse_font_configuration(raw_configuration, directory)
-    handwriting = _parse_handwriting_configuration(raw_configuration)
-
-    _validate_handwriting_fonts(fonts, handwriting)
-
     return PrintBookConfiguration(
         directory=directory,
         book=_parse_book_metadata(raw_configuration),
         page=_parse_page_configuration(raw_configuration),
         margins=_parse_margin_configuration(raw_configuration),
-        fonts=fonts,
-        handwriting=handwriting,
+        fonts=_parse_font_configuration(
+            raw_configuration,
+            directory,
+        ),
         sections=_parse_section_configurations(
             raw_configuration,
             directory,
@@ -224,74 +220,107 @@ def _parse_font_configuration(
     configuration: dict,
     directory: Path,
 ) -> FontConfiguration:
-    """Parse font-family names and their local font-file paths."""
+    """Parse and validate the configured fonts."""
     fonts = _require_mapping(configuration, "fonts")
 
     body = _require_string(fonts, "body")
+    sms = _require_string(fonts, "sms")
 
-    handwriting = _require_mapping(fonts, "handwriting")
-
-    handwriting_script = _parse_optional_font_family(
-        handwriting,
-        "script",
-    )
-
-    handwriting_print = _parse_optional_font_family(
-        handwriting,
-        "print",
-    )
+    handwriting = _parse_handwriting_configuration(fonts)
 
     paths = _parse_font_paths(fonts, directory)
 
+    required_families = {
+        body,
+        sms,
+        handwriting.print,
+        handwriting.script,
+    }
+
+    _validate_font_paths(
+        required_families,
+        paths,
+    )
+
     return FontConfiguration(
         body=body,
-        handwriting_script=handwriting_script,
-        handwriting_print=handwriting_print,
+        sms=sms,
+        handwriting=handwriting,
         paths=paths,
     )
 
 
-def _parse_optional_font_family(
-    configuration: dict,
-    name: str,
-) -> str | None:
-    """Parse an optional font-family name."""
-    value = configuration.get(name)
+def _parse_handwriting_configuration(
+    fonts: dict,
+) -> HandwritingConfiguration:
+    """Parse handwriting configuration."""
+    handwriting = _require_mapping(
+        fonts,
+        "handwriting",
+    )
 
-    if value is None:
-        return None
+    default_variant = _parse_handwriting_variant(
+        handwriting.get("default_variant")
+    )
 
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(
-            f"Font family '{name}' must be a non-empty string."
-        )
+    print_family = _require_string(
+        handwriting,
+        "print",
+    )
 
-    return value
+    script_family = _require_string(
+        handwriting,
+        "script",
+    )
+
+    return HandwritingConfiguration(
+        default_variant=default_variant,
+        print=print_family,
+        script=script_family,
+    )
 
 
 def _parse_font_paths(
     fonts: dict,
     directory: Path,
 ) -> dict[str, Path]:
-    """Parse the mapping from font-family names to local font files."""
+    """Parse the mapping from font family names to font files."""
     raw_paths = _require_mapping(fonts, "paths")
 
     paths: dict[str, Path] = {}
 
-    for font_family, raw_path in raw_paths.items():
-        if not isinstance(font_family, str) or not font_family.strip():
+    for family, value in raw_paths.items():
+        if not isinstance(family, str) or not family.strip():
             raise ValueError(
-                "Every font path entry must have a non-empty "
-                "font-family name."
+                "Font family names in 'fonts.paths' "
+                "must be non-empty strings."
             )
 
-        if not isinstance(raw_path, str) or not raw_path.strip():
+        if not isinstance(value, str) or not value.strip():
             raise ValueError(
-                f"Font path for '{font_family}' must be a "
-                "non-empty string."
+                f"Font path for {family!r} must be "
+                "a non-empty string."
             )
 
-        font_path = directory / raw_path
+        font_path = directory / value
+        paths[family] = font_path
+
+    return paths
+
+
+def _validate_font_paths(
+    required_families: set[str],
+    paths: dict[str, Path],
+) -> None:
+    """Validate that required font families have configured paths."""
+    for family in sorted(required_families):
+        if family not in paths:
+            raise ValueError(
+                f"No font path is configured for font family "
+                f"{family!r}."
+            )
+
+        font_path = paths[family]
 
         if not font_path.is_file():
             warnings.warn(
@@ -300,107 +329,28 @@ def _parse_font_paths(
                 stacklevel=2,
             )
 
-        paths[font_family] = font_path
 
-    return paths
-
-
-def _parse_handwriting_configuration(
-    configuration: dict,
-) -> HandwritingConfiguration:
-    """Parse handwriting variant configuration."""
-    fonts = _require_mapping(configuration, "fonts")
-    handwriting = _require_mapping(fonts, "handwriting")
-
-    default_variant = _parse_handwriting_variant(
-        _require_string(handwriting, "default_variant")
-    )
-
-    raw_mappings = handwriting.get("classes", {})
-
-    if not isinstance(raw_mappings, dict):
-        raise ValueError("'fonts.handwriting.classes' must be a mapping.")
-
-    class_mappings = {
-        _require_class_name(class_name):
-        _parse_handwriting_variant(variant)
-        for class_name, variant in raw_mappings.items()
-    }
-
-    return HandwritingConfiguration(
-        default_variant=default_variant,
-        class_mappings=class_mappings,
-    )
-
-
-def _require_class_name(value: object) -> str:
-    """Validate and return an XHTML/CSS class name."""
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(
-            "Every handwriting class mapping must have a "
-            "non-empty class name."
-        )
-
-    return value
-
-
-def _parse_handwriting_variant(value: object) -> HandwritingVariant:
-    """Convert a YAML handwriting variant to the semantic-model enum."""
+def _parse_handwriting_variant(
+    value: object,
+) -> HandwritingVariant:
+    """Convert a YAML value to a semantic-model handwriting variant."""
     if not isinstance(value, str):
-        raise ValueError("Handwriting variant must be a string.")
+        raise ValueError(
+            "Handwriting default_variant must be a string."
+        )
 
     try:
         return HandwritingVariant(value)
     except ValueError as error:
         raise ValueError(
-            f"Invalid handwriting variant: {value!r}."
+            f"Invalid handwriting variant: {value!r}. "
+            "Expected one of: "
+            + ", ".join(
+                variant.value
+                for variant in HandwritingVariant
+            )
+            + "."
         ) from error
-
-
-def _validate_handwriting_fonts(
-    fonts: FontConfiguration,
-    handwriting: HandwritingConfiguration,
-) -> None:
-    """Validate font configuration required by handwriting variants."""
-    variants_in_use = {
-        handwriting.default_variant,
-        *handwriting.class_mappings.values(),
-    }
-
-    for variant in variants_in_use:
-        font_family = _get_handwriting_font_family(
-            fonts,
-            variant,
-        )
-
-        if font_family is None:
-            raise ValueError(
-                f"Handwriting variant '{variant.value}' is used, "
-                "but no corresponding font family is configured."
-            )
-
-        if font_family not in fonts.paths:
-            raise ValueError(
-                f"Handwriting variant '{variant.value}' uses font "
-                f"family '{font_family}', but that font family has "
-                "no entry in 'fonts.paths'."
-            )
-
-
-def _get_handwriting_font_family(
-    fonts: FontConfiguration,
-    variant: HandwritingVariant,
-) -> str | None:
-    """Return the configured font family for a handwriting variant."""
-    if variant is HandwritingVariant.SCRIPT:
-        return fonts.handwriting_script
-
-    if variant is HandwritingVariant.PRINT:
-        return fonts.handwriting_print
-
-    raise ValueError(
-        f"Unsupported handwriting variant: {variant.value!r}."
-    )
 
 
 def _parse_section_configurations(
@@ -411,14 +361,21 @@ def _parse_section_configurations(
     raw_sections = configuration.get("sections")
 
     if not isinstance(raw_sections, list) or not raw_sections:
-        raise ValueError("'sections' must be a non-empty list.")
+        raise ValueError(
+            "'sections' must be a non-empty list."
+        )
 
-    sections = [
-        _parse_section_configuration(section, directory)
+    sections = tuple(
+        _parse_section_configuration(
+            section,
+            directory,
+        )
         for section in raw_sections
-    ]
+    )
 
-    return tuple(sections)
+    _validate_section_structure(sections)
+
+    return sections
 
 
 def _parse_section_configuration(
@@ -427,10 +384,18 @@ def _parse_section_configuration(
 ) -> SectionConfiguration:
     """Parse one section configuration."""
     if not isinstance(section, dict):
-        raise ValueError("Each section must be a mapping.")
+        raise ValueError(
+            "Each section must be a mapping."
+        )
 
-    section_type = _parse_section_type(section.get("type"))
-    file = _parse_source_file(section, directory)
+    section_type = _parse_section_type(
+        section.get("type")
+    )
+
+    source_file = _parse_source_file(
+        section,
+        directory,
+    )
 
     number = section.get("number")
 
@@ -442,12 +407,52 @@ def _parse_section_configuration(
 
     return SectionConfiguration(
         section_type=section_type,
-        file=file,
+        file=source_file,
         number=number,
     )
 
 
-def _parse_section_type(value: object) -> SectionType:
+def _validate_section_structure(
+    sections: tuple[SectionConfiguration, ...],
+) -> None:
+    """Validate the required high-level book structure."""
+    counts = {
+        section_type: sum(
+            section.section_type == section_type
+            for section in sections
+        )
+        for section_type in SectionType
+    }
+
+    if counts[SectionType.TITLE_PAGE] > 1:
+        raise ValueError(
+            "A book may contain at most one title page."
+        )
+
+    if counts[SectionType.FRONT_MATTER] > 1:
+        raise ValueError(
+            "A book may contain at most one front-matter section."
+        )
+
+    if counts[SectionType.TABLE_OF_CONTENTS] != 1:
+        raise ValueError(
+            "A book must contain exactly one table-of-contents section."
+        )
+
+    if counts[SectionType.CHAPTER] < 1:
+        raise ValueError(
+            "A book must contain at least one chapter."
+        )
+
+    if counts[SectionType.BACK_MATTER] > 1:
+        raise ValueError(
+            "A book may contain at most one back-matter section."
+        )
+
+
+def _parse_section_type(
+    value: object,
+) -> SectionType:
     """Convert a YAML section type to the semantic-model enum."""
     if not isinstance(value, str):
         raise ValueError("Section type must be a string.")
@@ -456,7 +461,13 @@ def _parse_section_type(value: object) -> SectionType:
         return SectionType(value)
     except ValueError as error:
         raise ValueError(
-            f"Invalid section type: {value!r}."
+            f"Invalid section type: {value!r}. "
+            "Expected one of: "
+            + ", ".join(
+                section_type.value
+                for section_type in SectionType
+            )
+            + "."
         ) from error
 
 
@@ -508,4 +519,4 @@ def _require_string(
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"'{name}' must be a non-empty string.")
 
-    return value
+    return value.strip()
