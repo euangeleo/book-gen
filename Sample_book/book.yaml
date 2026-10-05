@@ -1,0 +1,48 @@
+book:
+  title: "The Adventures of Tom Sawyer"
+  author: "Mark Twain"
+
+page:
+  width: 6in
+  height: 9in
+
+margins:
+  top: 0.75in
+  bottom: 0.75in
+  inner: 0.5in
+  outer: 0.625in
+
+fonts:
+  body: "Linux Libertine"
+  sms: "Liberation Sans"
+  handwriting:
+    default_variant: print
+    print: "Johnny Mac Scrawl BRK"
+    script: "Dancing Script"
+
+  paths:
+    "Linux Libertine": fonts/LinLibertine_R.otf
+    "Dancing Script": fonts/DancingScript-Regular.otf
+    "Johnny Mac Scrawl BRK": fonts/jmacscrl.ttf
+    "Liberation Sans": fonts/LiberationSans-Regular.ttf
+
+sections:
+  - type: title_page
+    file: title_page.xhtml
+
+  - type: front_matter
+    file: frontmatter.xhtml
+
+  - type: table_of_contents
+    file: toc.xhtml
+
+  - type: chapter
+    file: chapter-0001.xhtml
+    number: 1
+
+  - type: chapter
+    file: chapter-0002.xhtml
+    number: 2
+
+  - type: back_matter
+    file: backmatter.xhtml
