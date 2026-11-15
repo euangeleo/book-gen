@@ -7,7 +7,6 @@ anything about the semantic book model or LaTeX.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Iterator
 
 import cssselect2
@@ -63,6 +62,9 @@ INHERITED_PROPERTIES = frozenset(
 )
 
 
+FOUR_SIDED_PROPERTIES = frozenset({"margin", "padding"})
+
+
 @dataclass(frozen=True)
 class CssDeclaration:
     """One CSS declaration."""
@@ -74,9 +76,8 @@ class CssDeclaration:
 
 @dataclass(frozen=True)
 class CssRule:
-    """A CSS rule together with its selector metadata."""
+    """A CSS rule together with its declarations and source order."""
 
-    selector: object
     declarations: tuple[CssDeclaration, ...]
     source_order: int
 
@@ -140,17 +141,15 @@ class CssStylesheet:
                     f"{selector_text!r}"
                 ) from error
 
-            for selector in selectors:
-                self._matcher.add_selector(
-                    selector,
-                    CssRule(
-                        selector=selector,
-                        declarations=tuple(declarations),
-                        source_order=source_order,
-                    ),
-                )
+            css_rule = CssRule(
+                declarations=tuple(declarations),
+                source_order=source_order,
+            )
 
-                source_order += 1
+            for selector in selectors:
+                self._matcher.add_selector(selector, css_rule)
+
+            source_order += 1
 
     @staticmethod
     def _parse_declarations(
@@ -192,10 +191,24 @@ class CssStylesheet:
     def matched_rules(
         self,
         element: cssselect2.ElementWrapper,
-    ) -> Iterator[CssRule]:
-        """Yield CSS rules matching an XHTML element."""
-        for _, _, _, rule in self._matcher.match(element):
-            yield rule
+    ) -> Iterator[tuple[tuple[int, int, int], CssRule]]:
+        """Yield matching rules with their selector specificity.
+
+        If multiple selectors from the same selector list match an element,
+        the rule is yielded once, using the highest matching specificity.
+        """
+        matched: dict[int, tuple[tuple[int, int, int], CssRule]] = {}
+
+        for specificity, _, _, rule in self._matcher.match(element):
+            previous = matched.get(rule.source_order)
+
+            if previous is None or specificity > previous[0]:
+                matched[rule.source_order] = (specificity, rule)
+
+        yield from sorted(
+            matched.values(),
+            key=lambda match: match[1].source_order,
+        )
 
 
 class CssCascadeResolver:
@@ -219,76 +232,111 @@ class CssCascadeResolver:
                 if inherited_value is not None:
                     properties[property_name] = inherited_value
 
-        for rule in self.stylesheet.matched_rules(element):
-            for declaration in rule.declarations:
-                properties[declaration.property_name] = declaration.value
+        # Each candidate is stored with its cascade priority.
+        # Higher-priority candidates replace lower-priority candidates.
+        winners: dict[
+            str,
+            tuple[tuple[object, ...], str],
+        ] = {}
+
+        for specificity, rule in self.stylesheet.matched_rules(element):
+            for declaration_index, declaration in enumerate(rule.declarations):
+                self._consider_declaration(
+                    winners,
+                    declaration,
+                    important=declaration.important,
+                    inline=False,
+                    specificity=specificity,
+                    source_order=rule.source_order,
+                    declaration_order=declaration_index,
+                )
 
         inline_style = element.etree_element.get("style")
 
         if inline_style:
-            self._apply_inline_style(properties, inline_style)
+            declarations = tinycss2.parse_declaration_list(
+                inline_style,
+                skip_whitespace=True,
+                skip_comments=True,
+            )
 
-        properties = self._expand_shorthand_properties(properties)
+            for declaration_index, declaration in enumerate(declarations):
+                if declaration.type != "declaration":
+                    continue
+
+                property_name = declaration.lower_name
+
+                if property_name not in SUPPORTED_CSS_PROPERTIES:
+                    continue
+
+                value = tinycss2.serialize(declaration.value).strip()
+
+                if not value:
+                    continue
+
+                self._consider_declaration(
+                    winners,
+                    CssDeclaration(
+                        property_name=property_name,
+                        value=value,
+                        important=declaration.important,
+                    ),
+                    important=declaration.important,
+                    inline=True,
+                    specificity=(0, 0, 0),
+                    source_order=0,
+                    declaration_order=declaration_index,
+                )
+
+        properties.update(
+            {
+                property_name: candidate[1]
+                for property_name, candidate in winners.items()
+            }
+        )
 
         return ResolvedCssStyle(properties=properties)
 
     @staticmethod
-    def _apply_inline_style(
-        properties: dict[str, str],
-        inline_style: str,
+    def _consider_declaration(
+        winners: dict[str, tuple[tuple[object, ...], str]],
+        declaration: CssDeclaration,
+        *,
+        important: bool,
+        inline: bool,
+        specificity: tuple[int, int, int],
+        source_order: int,
+        declaration_order: int,
     ) -> None:
-        """Apply supported declarations from an inline style attribute."""
-        declarations = tinycss2.parse_declaration_list(
-            inline_style,
-            skip_whitespace=True,
-            skip_comments=True,
+        """Consider a declaration and retain it if it has higher priority."""
+        priority = (
+            important,
+            inline,
+            specificity,
+            source_order,
+            declaration_order,
         )
 
-        for declaration in declarations:
-            if declaration.type != "declaration":
-                continue
+        for expanded in _expand_declaration(declaration):
+            previous = winners.get(expanded.property_name)
 
-            property_name = declaration.lower_name
-
-            if property_name not in SUPPORTED_CSS_PROPERTIES:
-                continue
-
-            value = tinycss2.serialize(declaration.value).strip()
-
-            if value:
-                properties[property_name] = value
-
-    @staticmethod
-    def _expand_shorthand_properties(
-        properties: dict[str, str],
-    ) -> dict[str, str]:
-        """Expand supported CSS shorthand properties."""
-        expanded = dict(properties)
-
-        _expand_four_sided_property(
-            expanded,
-            "margin",
-        )
-
-        _expand_four_sided_property(
-            expanded,
-            "padding",
-        )
-
-        return expanded
+            if previous is None or priority > previous[0]:
+                winners[expanded.property_name] = (
+                    priority,
+                    expanded.value,
+                )
 
 
-def _expand_four_sided_property(
-    properties: dict[str, str],
-    property_name: str,
-) -> None:
-    """Expand a CSS four-sided shorthand into individual properties."""
-    shorthand = properties.get(property_name)
+def _expand_declaration(
+    declaration: CssDeclaration,
+) -> tuple[CssDeclaration, ...]:
+    """Expand supported shorthand declarations into longhand declarations."""
+    property_name = declaration.property_name
 
-    if shorthand is None:
-        return
+    if property_name not in FOUR_SIDED_PROPERTIES:
+        return (declaration,)
 
-    values = shorthand.split()
+    values = _split_css_values(declaration.value)
 
     if len(values) == 1:
         top, right, bottom, left = values * 4
@@ -301,14 +349,33 @@ def _expand_four_sided_property(
     elif len(values) == 4:
         top, right, bottom, left = values
     else:
-        return
+        # An invalid shorthand must not affect the longhand properties.
+        return ()
 
-    properties[f"{property_name}-top"] = top
-    properties[f"{property_name}-right"] = right
-    properties[f"{property_name}-bottom"] = bottom
-    properties[f"{property_name}-left"] = left
+    return tuple(
+        CssDeclaration(
+            property_name=f"{property_name}-{side}",
+            value=value,
+            important=declaration.important,
+        )
+        for side, value in (
+            ("top", top),
+            ("right", right),
+            ("bottom", bottom),
+            ("left", left),
+        )
+    )
 
-    del properties[property_name]
+
+def _split_css_values(value: str) -> list[str]:
+    """Split a shorthand into whitespace-separated CSS component values."""
+    tokens = tinycss2.parse_component_value_list(value)
+
+    return [
+        tinycss2.serialize([token]).strip()
+        for token in tokens
+        if token.type not in {"whitespace", "comment"}
+    ]
 
 
 def create_css_root(
