@@ -17,7 +17,7 @@ from pathlib import Path
 
 import yaml
 
-from model import HandwritingVariant, SectionType
+from .model import HandwritingVariant, SectionType
 
 
 CONFIGURATION_FILENAME = "book.yaml"
@@ -138,10 +138,11 @@ class PrintBookConfiguration:
 
 
 def load_configuration(
-    configuration_path: Path,
+    book_directory: Path,
 ) -> PrintBookConfiguration:
     """Load and validate a print-book YAML configuration."""
-    configuration_path = configuration_path.resolve()
+    book_directory = book_directory.resolve()
+    configuration_path = book_directory / CONFIGURATION_FILENAME
 
     if not configuration_path.is_file():
         raise FileNotFoundError(
@@ -154,10 +155,7 @@ def load_configuration(
     if not isinstance(raw_configuration, dict):
         raise ValueError("The YAML configuration must contain a mapping.")
 
-    return _create_configuration(
-        raw_configuration,
-        configuration_path.parent,
-    )
+    return _create_configuration(raw_configuration, book_directory)
 
 
 def _create_configuration(
@@ -303,6 +301,9 @@ def _parse_font_paths(
                 "a non-empty string."
             )
 
+        family = family.strip()
+        value = value.strip()
+
         font_path = directory / value
         paths[family] = font_path
 
@@ -401,7 +402,7 @@ def _parse_section_configuration(
     number = section.get("number")
 
     if number is not None:
-        if not isinstance(number, int) or number < 1:
+        if isinstance(number, bool) or number < 1 or not isinstance(number, int):
             raise ValueError(
                 "Section number must be a positive integer."
             )

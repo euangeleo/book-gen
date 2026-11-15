@@ -44,5 +44,9 @@ sections:
     file: chapter-0002.xhtml
     number: 2
 
+  - type: chapter
+    file: chapter-0003.xhtml
+    number: 3
+
   - type: back_matter
     file: backmatter.xhtml
