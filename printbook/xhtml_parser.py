@@ -1,51 +1,53 @@
 """Convert XHTML sections into the semantic print-book model.
 
 This module handles XHTML structure and semantic interpretation. CSS
-resolution is delegated to css_parser.py.
-
-Conversion of resolved CSS into RenderingStyle objects is intentionally
-deferred to a later rendering-style converter.
+resolution is delegated to css_parser.py, while CSS values are converted
+to semantic rendering styles by rendering_style.py.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from decimal import Decimal
 from pathlib import Path
 
 from lxml import etree
 
-from configuration import PrintBookConfiguration
-from css_parser import (
+from .configuration import PrintBookConfiguration
+from .css_parser import (
     CssCascadeResolver,
     CssStylesheet,
     ResolvedCssStyle,
     create_css_root,
 )
-from model import (
+from .model import (
     Block,
     BlockQuote,
     Bold,
+    Book,
     DropCap,
     Handwriting,
     HandwritingVariant,
     Heading,
     Inline,
     Italic,
+    LineBreak,
     List,
     ListItem,
     ListType,
     Paragraph,
     ParagraphStyle,
     Section,
-    SectionBreak,
     SectionType,
     SmallCaps,
     SMS,
     Table,
     TableCell,
+    TableColumn,
     TableRow,
     Text,
 )
+from .rendering_style import RenderingStyleConverter
 
 
 HANDWRITING_CLASS_MARKERS = (
@@ -71,13 +73,10 @@ DROP_CAP_CLASS_MARKERS = (
     "drop-cap",
 )
 
-
-@dataclass(frozen=True)
-class ParsedElement:
-    """An XHTML element together with its resolved CSS style."""
-
-    element: etree._Element
-    style: ResolvedCssStyle
+_LENGTH_VALUE_PATTERN = re.compile(
+    r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))"
+    r"(?:[a-zA-Z%]+)?\s*$"
+)
 
 
 class XhtmlParser:
@@ -88,21 +87,16 @@ class XhtmlParser:
         configuration: PrintBookConfiguration,
     ) -> None:
         self.configuration = configuration
+        self.style_converter = RenderingStyleConverter()
 
-    def parse(self) -> "Book":
+    def parse(self) -> Book:
         """Parse the complete configured print book."""
-        from model import Book
-
-        sections = tuple(
+        sections = [
             self._parse_section(section_configuration)
             for section_configuration in self.configuration.sections
-        )
+        ]
 
-        return Book(
-            sections=list(sections),
-            title=self.configuration.book.title,
-            author=self.configuration.book.author,
-        )
+        return Book(sections=sections)
 
     def _parse_section(
         self,
@@ -127,16 +121,15 @@ class XhtmlParser:
                 f"{section_configuration.file}"
             )
 
-        body_wrapper = self._find_wrapper(
-            css_root,
-            body,
-        )
+        body_wrapper = self._find_wrapper(css_root, body)
+        body_style = resolver.resolve(body_wrapper, None)
 
-        blocks = self._parse_blocks(
+        blocks = self._parse_nested_blocks(
             body,
             body_wrapper,
             resolver,
             section_configuration.section_type,
+            body_style,
         )
 
         return Section(
@@ -247,32 +240,15 @@ class XhtmlParser:
         section_type: SectionType,
     ) -> list[Block]:
         """Parse block-level children in source order."""
-        blocks: list[Block] = []
+        parent_style = resolver.resolve(parent_wrapper, None)
 
-        for child in parent:
-            if not isinstance(child.tag, str):
-                continue
-
-            wrapper = self._find_wrapper(
-                parent_wrapper,
-                child,
-            )
-
-            parsed_block = self._parse_block(
-                child,
-                wrapper,
-                resolver,
-                section_type,
-                parent_style=resolver.resolve(
-                    parent_wrapper,
-                    None,
-                ),
-            )
-
-            if parsed_block is not None:
-                blocks.append(parsed_block)
-
-        return blocks
+        return self._parse_nested_blocks(
+            parent,
+            parent_wrapper,
+            resolver,
+            section_type,
+            parent_style,
+        )
 
     def _parse_block(
         self,
@@ -281,77 +257,85 @@ class XhtmlParser:
         resolver: CssCascadeResolver,
         section_type: SectionType,
         parent_style: ResolvedCssStyle,
-    ) -> Block | None:
-        """Parse one XHTML element as a semantic block."""
+    ) -> list[Block]:
+        """Parse one XHTML element into zero or more semantic blocks.
+
+        Returning a list allows structural XHTML wrappers to be flattened
+        into their parent's block sequence without discarding their contents.
+        """
         tag_name = _local_name(element.tag)
         style = resolver.resolve(wrapper, parent_style)
+        rendering_style = self.style_converter.convert(style)
 
-        if tag_name in {"h1", "h2", "h3", "h4"}:
-            return Heading(
-                level=int(tag_name[1]),
-                content=self._parse_inline_content(
-                    element,
-                    wrapper,
-                    resolver,
-                    style,
-                ),
-            )
+        if tag_name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            return [
+                Heading(
+                    level=int(tag_name[1]),
+                    content=self._parse_inline_content(
+                        element,
+                        wrapper,
+                        resolver,
+                        style,
+                    ),
+                    rendering_style=rendering_style,
+                )
+            ]
 
         if tag_name == "p":
-            return Paragraph(
-                content=self._parse_inline_content(
-                    element,
-                    wrapper,
-                    resolver,
-                    style,
-                ),
-                style=self._determine_paragraph_style(
-                    style,
-                    section_type,
-                ),
-            )
+            return [
+                Paragraph(
+                    content=self._parse_inline_content(
+                        element,
+                        wrapper,
+                        resolver,
+                        style,
+                    ),
+                    style=self._determine_paragraph_style(
+                        style,
+                        section_type,
+                    ),
+                    rendering_style=rendering_style,
+                )
+            ]
 
         if tag_name == "blockquote":
-            return BlockQuote(
-                content=self._parse_nested_blocks(
+            return [
+                BlockQuote(
+                    content=self._parse_nested_blocks(
+                        element,
+                        wrapper,
+                        resolver,
+                        section_type,
+                        style,
+                    ),
+                    rendering_style=rendering_style,
+                )
+            ]
+
+        if tag_name in {"ol", "ul"}:
+            return [
+                self._parse_list(
                     element,
                     wrapper,
                     resolver,
                     section_type,
                     style,
-                ),
-            )
-
-        if tag_name in {"ol", "ul"}:
-            return self._parse_list(
-                element,
-                wrapper,
-                resolver,
-                section_type,
-                style,
-            )
+                )
+            ]
 
         if tag_name == "table":
-            return self._parse_table(
-                element,
-                wrapper,
-                resolver,
-                section_type,
-                style,
-            )
-
-        if self._is_section_break(element, style):
-            return SectionBreak(
-                content=self._parse_inline_content(
+            return [
+                self._parse_table(
                     element,
                     wrapper,
                     resolver,
+                    section_type,
                     style,
-                ),
-            )
+                )
+            ]
 
         if self._is_block_container(element):
-            nested_blocks = self._parse_nested_blocks(
+            return self._parse_nested_blocks(
                 element,
                 wrapper,
                 resolver,
@@ -359,10 +343,9 @@ class XhtmlParser:
                 style,
             )
 
-            if nested_blocks:
-                return _combine_blocks(nested_blocks)
-
-        return None
+        # Inline elements are handled by _parse_nested_blocks() when they
+        # occur within a block container. They do not produce blocks here.
+        return []
 
     def _parse_nested_blocks(
         self,
@@ -372,19 +355,29 @@ class XhtmlParser:
         section_type: SectionType,
         parent_style: ResolvedCssStyle,
     ) -> list[Block]:
-        """Parse nested block content."""
+        """Parse nested blocks while preserving interleaved inline content.
+
+        Text directly inside a block container, and inline elements between
+        block children, are grouped into Paragraph objects. This is important
+        for list items and table cells that mix text with nested block markup.
+        """
         blocks: list[Block] = []
+        pending_inline: list[Inline] = []
+
+        if parent.text:
+            self._append_inline_text(
+                pending_inline,
+                parent.text,
+                parent_style,
+            )
 
         for child in parent:
             if not isinstance(child.tag, str):
                 continue
 
-            wrapper = self._find_wrapper(
-                parent_wrapper,
-                child,
-            )
+            wrapper = self._find_wrapper(parent_wrapper, child)
 
-            block = self._parse_block(
+            child_blocks = self._parse_block(
                 child,
                 wrapper,
                 resolver,
@@ -392,10 +385,85 @@ class XhtmlParser:
                 parent_style,
             )
 
-            if block is not None:
-                blocks.append(block)
+            if child_blocks:
+                self._flush_inline_content(
+                    blocks,
+                    pending_inline,
+                    parent_style,
+                )
+                blocks.extend(child_blocks)
+            else:
+                child_style = resolver.resolve(wrapper, parent_style)
+
+                pending_inline.extend(
+                    self._parse_inline_element(
+                        child,
+                        wrapper,
+                        resolver,
+                        child_style,
+                    )
+                )
+
+            if child.tail:
+                self._append_inline_text(
+                    pending_inline,
+                    child.tail,
+                    parent_style,
+                )
+
+        self._flush_inline_content(
+            blocks,
+            pending_inline,
+            parent_style,
+        )
 
         return blocks
+
+    def _flush_inline_content(
+        self,
+        blocks: list[Block],
+        pending_inline: list[Inline],
+        parent_style: ResolvedCssStyle,
+    ) -> None:
+        """Convert accumulated inline content into a paragraph."""
+        if not pending_inline:
+            return
+
+        # Ignore indentation and formatting whitespace between block tags.
+        # Whitespace attached to actual inline content is retained.
+        if not any(
+            not isinstance(item, Text) or item.text.strip()
+            for item in pending_inline
+        ):
+            pending_inline.clear()
+            return
+
+        blocks.append(
+            Paragraph(
+                content=list(pending_inline),
+                style=ParagraphStyle.NORMAL,
+                rendering_style=self.style_converter.convert(parent_style),
+            )
+        )
+
+        pending_inline.clear()
+
+    def _append_inline_text(
+        self,
+        content: list[Inline],
+        text: str,
+        style: ResolvedCssStyle,
+    ) -> None:
+        """Append text while ignoring whitespace-only block indentation."""
+        if not text.strip():
+            return
+
+        content.append(
+            Text(
+                text,
+                rendering_style=self.style_converter.convert(style),
+            )
+        )
 
     def _parse_list(
         self,
@@ -415,18 +483,14 @@ class XhtmlParser:
         items: list[ListItem] = []
 
         for child in element:
+            if not isinstance(child.tag, str):
+                continue
+
             if _local_name(child.tag) != "li":
                 continue
 
-            child_wrapper = self._find_wrapper(
-                wrapper,
-                child,
-            )
-
-            item_style = resolver.resolve(
-                child_wrapper,
-                style,
-            )
+            child_wrapper = self._find_wrapper(wrapper, child)
+            item_style = resolver.resolve(child_wrapper, style)
 
             item_blocks = self._parse_nested_blocks(
                 child,
@@ -436,28 +500,19 @@ class XhtmlParser:
                 item_style,
             )
 
-            if not item_blocks:
-                inline_content = self._parse_inline_content(
-                    child,
-                    child_wrapper,
-                    resolver,
-                    item_style,
-                )
-
-                if inline_content:
-                    item_blocks = [
-                        Paragraph(content=inline_content)
-                    ]
-
             items.append(
                 ListItem(
                     content=item_blocks,
+                    rendering_style=self.style_converter.convert(
+                        item_style
+                    ),
                 )
             )
 
         return List(
             list_type=list_type,
             items=items,
+            rendering_style=self.style_converter.convert(style),
         )
 
     def _parse_table(
@@ -468,11 +523,13 @@ class XhtmlParser:
         section_type: SectionType,
         style: ResolvedCssStyle,
     ) -> Table:
-        """Parse an XHTML table."""
+        """Parse an XHTML table, including column widths and cell styles."""
         rows: list[TableRow] = []
 
+        # Incoming books do not contain nested tables, so collecting all
+        # descendant rows is sufficient and includes rows in thead/tbody/tfoot.
         for row in element.iter():
-            if _local_name(row.tag) != "tr":
+            if row is element or _local_name(row.tag) != "tr":
                 continue
 
             row_wrapper = self._find_wrapper(wrapper, row)
@@ -481,20 +538,16 @@ class XhtmlParser:
             cells: list[TableCell] = []
 
             for cell in row:
+                if not isinstance(cell.tag, str):
+                    continue
+
                 cell_tag = _local_name(cell.tag)
 
                 if cell_tag not in {"th", "td"}:
                     continue
 
-                cell_wrapper = self._find_wrapper(
-                    row_wrapper,
-                    cell,
-                )
-
-                cell_style = resolver.resolve(
-                    cell_wrapper,
-                    row_style,
-                )
+                cell_wrapper = self._find_wrapper(row_wrapper, cell)
+                cell_style = resolver.resolve(cell_wrapper, row_style)
 
                 cell_blocks = self._parse_nested_blocks(
                     cell,
@@ -504,33 +557,94 @@ class XhtmlParser:
                     cell_style,
                 )
 
-                if not cell_blocks:
-                    inline_content = self._parse_inline_content(
-                        cell,
-                        cell_wrapper,
-                        resolver,
-                        cell_style,
-                    )
-
-                    if inline_content:
-                        cell_blocks = [
-                            Paragraph(content=inline_content)
-                        ]
-
                 cells.append(
                     TableCell(
                         content=cell_blocks,
                         is_header=cell_tag == "th",
+                        rendering_style=self.style_converter.convert(
+                            cell_style
+                        ),
                     )
                 )
 
             rows.append(
                 TableRow(
                     cells=cells,
+                    rendering_style=self.style_converter.convert(
+                        row_style
+                    ),
                 )
             )
 
-        return Table(rows=rows)
+        columns = self._parse_table_columns(
+            element,
+            wrapper,
+            resolver,
+            style,
+            rows,
+        )
+
+        return Table(
+            columns=columns,
+            rows=rows,
+            rendering_style=self.style_converter.convert(style),
+        )
+
+    def _parse_table_columns(
+        self,
+        element: etree._Element,
+        wrapper,
+        resolver: CssCascadeResolver,
+        table_style: ResolvedCssStyle,
+        rows: list[TableRow],
+    ) -> list[TableColumn]:
+        """Read source column widths, leaving unspecified widths unset."""
+        columns: list[TableColumn] = []
+
+        for column in element.iter():
+            if column is element or _local_name(column.tag) != "col":
+                continue
+
+            column_wrapper = self._find_wrapper(wrapper, column)
+            column_style = resolver.resolve(
+                column_wrapper,
+                table_style,
+            )
+
+            width = column.get("width") or column_style.get("width")
+
+            if width is not None:
+                width = width.strip()
+
+                # Legacy HTML width attributes sometimes omit a unit.
+                if re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)", width):
+                    width = f"{width}px"
+
+                parsed_width = self.style_converter.parse_length(
+                    width,
+                    property_name="width",
+                )
+            else:
+                parsed_width = None
+
+            columns.append(
+                TableColumn(width=parsed_width)
+            )
+
+        if columns:
+            return columns
+
+        # When no col/colgroup definitions are supplied, retain the table's
+        # column count. The renderer can distribute unspecified widths evenly.
+        column_count = max(
+            (len(row.cells) for row in rows),
+            default=0,
+        )
+
+        return [
+            TableColumn(width=None)
+            for _ in range(column_count)
+        ]
 
     def _parse_inline_content(
         self,
@@ -538,30 +652,32 @@ class XhtmlParser:
         parent_wrapper,
         resolver: CssCascadeResolver,
         parent_style: ResolvedCssStyle,
+        *,
+        apply_parent_style: bool = False,
     ) -> list[Inline]:
         """Parse inline content while preserving source order."""
         inline_content: list[Inline] = []
 
         if parent.text:
             inline_content.append(
-                Text(parent.text)
+                Text(
+                    parent.text,
+                    rendering_style=(
+                        self.style_converter.convert(parent_style)
+                        if apply_parent_style
+                        else None
+                    ),
+                )
             )
 
         for child in parent:
             if not isinstance(child.tag, str):
                 continue
 
-            wrapper = self._find_wrapper(
-                parent_wrapper,
-                child,
-            )
+            wrapper = self._find_wrapper(parent_wrapper, child)
+            child_style = resolver.resolve(wrapper, parent_style)
 
-            child_style = resolver.resolve(
-                wrapper,
-                parent_style,
-            )
-
-            inline_content.append(
+            inline_content.extend(
                 self._parse_inline_element(
                     child,
                     wrapper,
@@ -572,10 +688,26 @@ class XhtmlParser:
 
             if child.tail:
                 inline_content.append(
-                    Text(child.tail)
+                    Text(
+                        child.tail,
+                        rendering_style=(
+                            self.style_converter.convert(parent_style)
+                            if apply_parent_style
+                            else None
+                        ),
+                    )
                 )
 
-        return inline_content
+        # Transparent inline elements preserve their recursively parsed
+        # children. Apply the wrapper's style to direct text nodes; nested
+        # semantic elements retain their own styles.
+        return self._parse_inline_content(
+            element,
+            wrapper,
+            resolver,
+            style,
+            apply_parent_style=True,
+        )
 
     def _parse_inline_element(
         self,
@@ -583,9 +715,14 @@ class XhtmlParser:
         wrapper,
         resolver: CssCascadeResolver,
         style: ResolvedCssStyle,
-    ) -> Inline:
+    ) -> list[Inline]:
         """Parse one inline XHTML element."""
         tag_name = _local_name(element.tag)
+        classes = _class_names(element)
+        rendering_style = self.style_converter.convert(style)
+
+        if tag_name == "br":
+            return [LineBreak()]
 
         content = self._parse_inline_content(
             element,
@@ -594,57 +731,79 @@ class XhtmlParser:
             style,
         )
 
-        classes = _class_names(element)
-
         if tag_name in {"i", "em"}:
-            return Italic(content=content)
+            return [Italic(
+                content=content,
+                rendering_style=rendering_style,
+            )]
 
         if tag_name in {"b", "strong"}:
-            return Bold(content=content)
+            return [Bold(
+                content=content,
+                rendering_style=rendering_style,
+            )]
 
         if _has_class_marker(classes, SMALL_CAPS_CLASS_MARKERS):
-            return SmallCaps(content=content)
+            return [SmallCaps(
+                content=content,
+                rendering_style=rendering_style,
+            )]
 
         if _has_class_marker(classes, HANDWRITING_CLASS_MARKERS):
-            variant = self._determine_handwriting_variant(classes)
-
-            return Handwriting(
-                variant=variant,
+            return [Handwriting(
+                variant=self._determine_handwriting_variant(classes),
                 content=content,
-            )
+                rendering_style=rendering_style,
+            )]
 
         if _has_class_marker(classes, SMS_CLASS_MARKERS):
-            return SMS(content=content)
+            return [SMS(
+                content=content,
+                rendering_style=rendering_style,
+            )]
 
         if _has_class_marker(classes, DROP_CAP_CLASS_MARKERS):
-            return DropCap(content=content)
+            return [DropCap(
+                content=content,
+                rendering_style=rendering_style,
+            )]
 
-        if _is_text_span(element):
-            return Text(
-                "".join(_inline_text(element))
-            )
-
-        return Text(
-            "".join(_inline_text(element))
-        )
+        # Ordinary spans, links, and other inline wrappers are transparent:
+        # retain their recursively parsed children rather than flattening
+        # their text. Their own computed style is applied to direct text.
+        return [content[0]] if len(content) == 1 and _is_text_span(element) else [_TransparentInline(
+            content=content,
+            rendering_style=rendering_style,
+        )]
 
     def _determine_handwriting_variant(
         self,
         classes: set[str],
     ) -> HandwritingVariant:
-        """Determine handwriting variant from configured class mappings."""
-        for class_name in classes:
-            try:
-                return self.configuration.handwriting.get_variant(
-                    class_name
-                )
-            except KeyError:
-                continue
+        """Determine the handwriting variant from class names or config."""
+        normalized_classes = {
+            class_name.lower().replace("_", "-")
+            for class_name in classes
+        }
 
-        return self.configuration.handwriting.default_variant
+        if any(
+            "handwriting-print" in class_name
+            or class_name in {"print", "handwritingprint"}
+            for class_name in normalized_classes
+        ):
+            return HandwritingVariant.PRINT
 
-    @staticmethod
+        if any(
+            "handwriting-script" in class_name
+            or class_name in {"script", "handwritingscript"}
+            for class_name in normalized_classes
+        ):
+            return HandwritingVariant.SCRIPT
+
+        return self.configuration.fonts.handwriting.default_variant
+
     def _determine_paragraph_style(
+        self,
         style: ResolvedCssStyle,
         section_type: SectionType,
     ) -> ParagraphStyle:
@@ -654,28 +813,47 @@ class XhtmlParser:
 
         text_indent = style.get("text-indent")
 
-        if text_indent is not None and text_indent not in {"0", "0em", "0pt"}:
+        if self._is_nonzero_length(text_indent):
             return ParagraphStyle.FIRST_INDENT
 
         margin_top = style.get("margin-top")
         margin_bottom = style.get("margin-bottom")
 
         if (
-            margin_top is not None
-            and margin_bottom is not None
-            and margin_top not in {"0", "0em", "0pt"}
-            and margin_bottom not in {"0", "0em", "0pt"}
+            self._is_nonzero_length(margin_top)
+            and self._is_nonzero_length(margin_bottom)
         ):
             return ParagraphStyle.SPACING_BEFORE_AND_AFTER
 
-        if margin_bottom is not None and margin_bottom not in {
-            "0",
-            "0em",
-            "0pt",
-        }:
+        if self._is_nonzero_length(margin_bottom):
             return ParagraphStyle.SPACING_AFTER
 
         return ParagraphStyle.NORMAL
+
+    @staticmethod
+    def _is_nonzero_length(value: str | None) -> bool:
+        """Return whether a CSS length represents a nonzero numeric value."""
+        if value is None:
+            return False
+
+        match = _LENGTH_VALUE_PATTERN.fullmatch(value)
+
+        if match is None:
+            # For values outside the simple numeric-length syntax, avoid
+            # incorrectly treating a potentially nonzero value as zero.
+            return value.strip().lower() not in {
+                "",
+                "0",
+                "0px",
+                "0pt",
+                "0em",
+                "0rem",
+                "0mm",
+                "0cm",
+                "0%",
+            }
+
+        return Decimal(match.group(1)) != 0
 
     @staticmethod
     def _is_block_container(element: etree._Element) -> bool:
@@ -690,19 +868,6 @@ class XhtmlParser:
             "footer",
             "aside",
         }
-
-    @staticmethod
-    def _is_section_break(
-        element: etree._Element,
-        style: ResolvedCssStyle,
-    ) -> bool:
-        """Determine whether an element represents a section break."""
-        return (
-            style.get("page-break-before") in {
-                "always",
-                "page",
-            }
-        )
 
 
 def _local_name(tag: str) -> str:
@@ -742,7 +907,7 @@ def _has_class_marker(
 
 
 def _is_text_span(element: etree._Element) -> bool:
-    """Return whether an element is an ordinary inline span."""
+    """Return whether an element is an ordinary transparent inline wrapper."""
     return _local_name(element.tag) in {
         "span",
         "a",
@@ -754,16 +919,3 @@ def _is_text_span(element: etree._Element) -> bool:
         "sub",
         "sup",
     }
-
-
-def _inline_text(element: etree._Element) -> list[str]:
-    """Collect all text contained by an inline element."""
-    return list(element.itertext())
-
-
-def _combine_blocks(blocks: list[Block]) -> Block | None:
-    """Return a block when a wrapper contains exactly one semantic block."""
-    if len(blocks) == 1:
-        return blocks[0]
-
-    return None
