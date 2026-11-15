@@ -25,7 +25,8 @@ import re
 from decimal import Decimal, InvalidOperation
 from typing import Mapping
 
-from model import (
+from .css_parser import ResolvedCssStyle
+from .model import (
     Border,
     BorderSide,
     BorderStyle,
@@ -54,32 +55,16 @@ _LENGTH_PATTERN = re.compile(
 
 
 _COLOR_PATTERN = re.compile(
-    r"^#[0-9a-fA-F]{3,8}$"
+    r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|"
+    r"[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
 )
 
 
-class ResolvedCssStyle:
-    """CSS properties after selector matching, cascade, and inheritance.
-
-    The CSS parser should construct this object.
-
-    Property names are CSS property names such as ``font-family`` and
-    ``text-align``. Values remain CSS strings at this stage.
-
-    Keeping CSS values as strings until this boundary is intentional:
-    ``Length`` and the other semantic-model types should not be exposed to
-    CSS parsing or selector-matching code.
-    """
-
-    def __init__(
-        self,
-        properties: Mapping[str, str] | None = None,
-    ) -> None:
-        self.properties = dict(properties or {})
-
-    def get(self, property_name: str) -> str | None:
-        """Return a resolved CSS property value."""
-        return self.properties.get(property_name)
+_BORDER_WIDTH_KEYWORDS = {
+    "thin": Decimal("1"),
+    "medium": Decimal("3"),
+    "thick": Decimal("5"),
+}
 
 
 class RenderingStyleConverter:
@@ -333,11 +318,12 @@ class RenderingStyleConverter:
         )
 
     def _color(
-        self,
-        css_style: ResolvedCssStyle,
-        property_name: str,
+            self,
+            css_style: ResolvedCssStyle,
+            property_name: str,
     ) -> Color | None:
         """Convert one CSS color property."""
+
         value = css_style.get(property_name)
 
         if value is None:
@@ -352,6 +338,12 @@ class RenderingStyleConverter:
             "unset",
         }:
             return None
+
+        if normalized.lower() == "currentcolor":
+            if property_name == "color":
+                return None
+
+            return self._color(css_style, "color")
 
         return Color(
             value=_normalize_color(normalized),
@@ -392,12 +384,13 @@ class RenderingStyleConverter:
         return Border(**sides)
 
     def _border_side(
-        self,
-        css_style: ResolvedCssStyle,
-        side: str,
+            self,
+            css_style: ResolvedCssStyle,
+            side: str,
     ) -> BorderSide | None:
         """Convert one CSS border side."""
-        width = self._length(
+
+        width = self._border_width(
             css_style,
             f"border-{side}-width",
         )
@@ -412,9 +405,9 @@ class RenderingStyleConverter:
         )
 
         if (
-            width is None
-            and color is None
-            and style_value is None
+                width is None
+                and color is None
+                and style_value is None
         ):
             return None
 
@@ -424,6 +417,31 @@ class RenderingStyleConverter:
             width=width,
             color=color,
             style=border_style,
+        )
+
+    @staticmethod
+    def _border_width(
+            css_style: ResolvedCssStyle,
+            property_name: str,
+    ) -> Length | None:
+        """Convert a CSS border-width property."""
+
+        value = css_style.get(property_name)
+
+        if value is None:
+            return None
+
+        normalized = value.strip().lower()
+
+        if normalized in _BORDER_WIDTH_KEYWORDS:
+            return Length(
+                value=_BORDER_WIDTH_KEYWORDS[normalized],
+                unit=LengthUnit.PX,
+            )
+
+        return _parse_length(
+            value,
+            property_name=property_name,
         )
 
 
@@ -444,12 +462,8 @@ def _parse_length(value: str, *, property_name: str) -> Length:
             f"Invalid numeric value in {property_name}: {value!r}"
         ) from error
 
-    unit = _LENGTH_UNITS[match.group("unit")]
-
-    return Length(
-        value=numeric_value,
-        unit=LengthUnit(match.group("unit")),
-    )
+    unit = LengthUnit(match.group("unit"))
+    return Length(value=numeric_value, unit=unit))
 
 
 def _first_font_family(value: str) -> str:

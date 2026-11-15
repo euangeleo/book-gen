@@ -43,6 +43,21 @@ SUPPORTED_CSS_PROPERTIES = frozenset(
         "border-right",
         "border-bottom",
         "border-left",
+        "border-width",
+        "border-style",
+        "border-color",
+        "border-top-width",
+        "border-top-style",
+        "border-top-color",
+        "border-right-width",
+        "border-right-style",
+        "border-right-color",
+        "border-bottom-width",
+        "border-bottom-style",
+        "border-bottom-color",
+        "border-left-width",
+        "border-left-style",
+        "border-left-color",
         "page-break-before",
     }
 )
@@ -62,7 +77,16 @@ INHERITED_PROPERTIES = frozenset(
 )
 
 
-FOUR_SIDED_PROPERTIES = frozenset({"margin", "padding"})
+FOUR_SIDED_PROPERTIES = frozenset(
+    {
+        "margin",
+        "padding",
+        "border",
+        "border-width",
+        "border-style",
+        "border-color",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -331,12 +355,63 @@ def _expand_declaration(
     declaration: CssDeclaration,
 ) -> tuple[CssDeclaration, ...]:
     """Expand supported shorthand declarations into longhand declarations."""
-    property_name = declaration.property_name
 
+    property_name = declaration.property_name
+    value = declaration.value
+
+    # A border shorthand consists of width, style, and color components.
+    # It is not a whitespace-separated list of four side values.
+    if property_name == "border" or property_name in {
+        "border-top",
+        "border-right",
+        "border-bottom",
+        "border-left",
+    }:
+        components = _parse_border_components(value)
+
+        if components is None:
+            return ()
+
+        width, style, color = components
+
+        if property_name == "border":
+            sides = ("top", "right", "bottom", "left")
+        else:
+            sides = (property_name.removeprefix("border-"),)
+
+        expanded = []
+
+        for side in sides:
+            prefix = f"border-{side}"
+
+            expanded.extend(
+                (
+                    CssDeclaration(
+                        property_name=f"{prefix}-width",
+                        value=width,
+                        important=declaration.important,
+                    ),
+                    CssDeclaration(
+                        property_name=f"{prefix}-style",
+                        value=style,
+                        important=declaration.important,
+                    ),
+                    CssDeclaration(
+                        property_name=f"{prefix}-color",
+                        value=color,
+                        important=declaration.important,
+                    ),
+                )
+            )
+
+        return tuple(expanded)
+
+    # The remaining shorthand properties distribute one to four values
+    # across the four sides.
     if property_name not in FOUR_SIDED_PROPERTIES:
         return (declaration,)
 
-    values = _split_css_values(declaration.value)
+    values = _split_css_values(value)
 
     if len(values) == 1:
         top, right, bottom, left = values * 4
@@ -352,18 +427,128 @@ def _expand_declaration(
         # An invalid shorthand must not affect the longhand properties.
         return ()
 
+    if property_name in {
+        "border-width",
+        "border-style",
+        "border-color",
+    }:
+        component = property_name.removeprefix("border-")
+
+        return tuple(
+            CssDeclaration(
+                property_name=f"border-{side}-{component}",
+                value=side_value,
+                important=declaration.important,
+            )
+            for side, side_value in (
+                ("top", top),
+                ("right", right),
+                ("bottom", bottom),
+                ("left", left),
+            )
+        )
+
     return tuple(
         CssDeclaration(
             property_name=f"{property_name}-{side}",
-            value=value,
+            value=side_value,
             important=declaration.important,
         )
-        for side, value in (
+        for side, side_value in (
             ("top", top),
             ("right", right),
             ("bottom", bottom),
             ("left", left),
         )
+    )
+
+
+def _parse_border_components(
+    value: str,
+) -> tuple[str, str, str] | None:
+    """Parse the width, style, and color components of a border shorthand.
+
+    Only the border styles supported by the rendering layer (none and solid)
+    are accepted. A missing component receives its CSS initial value.
+    """
+
+    width: str | None = None
+    style: str | None = None
+    color: str | None = None
+
+    supported_styles = {"none", "solid"}
+
+    # Recognize other CSS border styles so they aren't mistaken for colors.
+    unsupported_styles = {
+        "hidden",
+        "dotted",
+        "dashed",
+        "double",
+        "groove",
+        "ridge",
+        "inset",
+        "outset",
+    }
+
+    for token in tinycss2.parse_component_value_list(value):
+        if token.type in {"whitespace", "comment"}:
+            continue
+
+        token_value = tinycss2.serialize([token]).strip()
+
+        if token.type == "dimension":
+            if width is not None:
+                return None
+            width = token_value
+
+        elif token.type == "number":
+            # CSS permits a unitless zero border width, but not other
+            # unitless numeric widths.
+            if width is not None or token.value != 0:
+                return None
+            width = token_value
+
+        elif token.type == "ident" and token_value.lower() in {
+            "thin",
+            "medium",
+            "thick",
+        }:
+            if width is not None:
+                return None
+            width = token_value.lower()
+
+        elif token.type == "ident":
+            identifier = token_value.lower()
+
+            if identifier in supported_styles:
+                if style is not None:
+                    return None
+                style = identifier
+
+            elif identifier in unsupported_styles:
+                return None
+
+            else:
+                # A named color, such as red, black, or currentColor.
+                if color is not None:
+                    return None
+                color = token_value
+
+        elif token.type in {"hash", "function"}:
+            # Hexadecimal colors and functional colors such as rgb().
+            if color is not None:
+                return None
+            color = token_value
+
+        else:
+            # This component is outside the supported border syntax.
+            return None
+
+    # CSS initial values for omitted border components.
+    return (
+        width if width is not None else "medium",
+        style if style is not None else "none",
+        color if color is not None else "currentColor",
     )
 
 
