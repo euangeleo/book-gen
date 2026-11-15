@@ -20,8 +20,8 @@ from typing import TypeAlias
 class SectionType(Enum):
     """Types of major sections in a print book."""
 
-    FRONT_MATTER = "front_matter"
     TITLE_PAGE = "title_page"
+    FRONT_MATTER = "front_matter"
     TABLE_OF_CONTENTS = "table_of_contents"
     CHAPTER = "chapter"
     BACK_MATTER = "back_matter"
@@ -231,7 +231,7 @@ class SmallCaps(StyledInline):
 class Handwriting(StyledInline):
     """Text intended to be rendered in a handwriting-style typeface."""
 
-    variant: HandwritingVariant = HandwritingVariant.SCRIPT
+    variant: HandwritingVariant = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -261,8 +261,8 @@ class Heading(Block):
 
     def __post_init__(self) -> None:
         """Validate the heading level."""
-        if not 1 <= self.level <= 4:
-            raise ValueError("Heading level must be between 1 and 4.")
+        if not 1 <= self.level <= 6:
+            raise ValueError("Heading level must be between 1 and 6.")
 
 
 @dataclass(frozen=True)
@@ -382,5 +382,3 @@ class Book:
     """The complete semantic representation of a print book."""
 
     sections: list[Section] = field(default_factory=list)
-    title: str | None = None
-    author: str | None = None
