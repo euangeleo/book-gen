@@ -154,11 +154,6 @@ class Border:
 
 
 @dataclass(frozen=True)
-class LineBreak(Inline):
-    """A deliberate line break within inline content."""
-
-
-@dataclass(frozen=True)
 class RenderingStyle:
     """Resolved rendering information associated with model content.
 
@@ -196,8 +191,9 @@ class Inline:
     """Base class for all inline content."""
 
 
-class Block:
-    """Base class for all block-level content."""
+@dataclass(frozen=True)
+class LineBreak(Inline):
+    """A deliberate line break within inline content."""
 
 
 @dataclass(frozen=True)
@@ -249,6 +245,10 @@ class DropCap(StyledInline):
 
 
 InlineContent: TypeAlias = list[Inline]
+
+
+class Block:
+    """Base class for all block-level content."""
 
 
 @dataclass(frozen=True)

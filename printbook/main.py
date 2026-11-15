@@ -1,4 +1,3 @@
-# Don't forget the import statements
 
 def main() -> int:
     args = parse_arguments()
